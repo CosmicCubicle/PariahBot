@@ -14,14 +14,7 @@ if [ -z "$BOT_USER" ] || [ "$BOT_USER" = "root" ]; then
 fi
 
 BOT_HOME=$(getent passwd "$BOT_USER" | cut -d: -f6)
-INSTALL_DIR=/opt/BambuBot
-MEDIAMTX_VERSION=1.20.1
-
-case "$(uname -m)" in
-	aarch64|arm64) MEDIAMTX_ARCH=arm64 ;;
-	x86_64|amd64) MEDIAMTX_ARCH=amd64 ;;
-	*) printf 'Unsupported MediaMTX architecture.\n' >&2; exit 1 ;;
-esac
+INSTALL_DIR=/opt/PariahBot
 
 for command in git curl ffmpeg; do
 	if ! command -v "$command" >/dev/null 2>&1; then
@@ -53,36 +46,20 @@ sudo -u "$BOT_USER" HOME="$BOT_HOME" bash -lc '
 	. "$NVM_DIR/nvm.sh"
 	nvm install 20
 	nvm alias default 20
-	cd /opt/BambuBot
+	cd /opt/PariahBot
 	npm ci --omit=dev
 '
-
-if [ ! -x /opt/mediamtx/mediamtx ]; then
-	mkdir -p /opt/mediamtx
-	curl -fsSL "https://github.com/bluenviron/mediamtx/releases/download/v${MEDIAMTX_VERSION}/mediamtx_v${MEDIAMTX_VERSION}_linux_${MEDIAMTX_ARCH}.tar.gz" | tar -xz -C /opt/mediamtx
-	chown -R "$BOT_USER:$BOT_USER" /opt/mediamtx
-fi
-
-install -m 644 "$INSTALL_DIR/deploy/mediamtx.yml" /opt/mediamtx/mediamtx.yml
-sed "s/^User=cosmic$/User=$BOT_USER/" "$INSTALL_DIR/deploy/bambubot.service" > /etc/systemd/system/bambubot.service
-sed "s/^User=cosmic$/User=$BOT_USER/" "$INSTALL_DIR/deploy/mediamtx.service" > /etc/systemd/system/mediamtx.service
-sed "s/^User=cosmic$/User=$BOT_USER/" "$INSTALL_DIR/deploy/bambu-rtsp-relay.service" > /etc/systemd/system/bambu-rtsp-relay.service
-chmod 644 /etc/systemd/system/bambubot.service /etc/systemd/system/mediamtx.service /etc/systemd/system/bambu-rtsp-relay.service
-chmod 755 "$INSTALL_DIR/deploy/start-rtsp-relay.sh"
-chmod 755 "$INSTALL_DIR/deploy/sync-bambubot.sh"
+sed "s/^User=cosmic$/User=$BOT_USER/" "$INSTALL_DIR/deploy/pariahbot.service" > /etc/systemd/system/pariahbot.service
+chmod 644 /etc/systemd/system/pariahbot.service
+chmod 755 "$INSTALL_DIR/deploy/sync-pariahbot.sh"
 chmod 755 "$INSTALL_DIR/deploy/onboard.sh"
 
 systemctl daemon-reload
-systemctl enable mediamtx.service bambubot.service
-(crontab -u "$BOT_USER" -l 2>/dev/null | grep -v 'sync-bambubot.sh' || true; echo '0,15,30,45 * * * * /opt/BambuBot/deploy/sync-bambubot.sh') | crontab -u "$BOT_USER" -
+systemctl enable pariahbot.service
+(crontab -u "$BOT_USER" -l 2>/dev/null | grep -v 'sync-pariahbot.sh' || true; echo '0,15,30,45 * * * * /opt/PariahBot/deploy/sync-pariahbot.sh') | crontab -u "$BOT_USER" -
 
 if ! grep -q '^DISCORD_TOKEN=your-bot-token-here$' "$INSTALL_DIR/hom.env"; then
-	systemctl restart mediamtx.service bambubot.service
-	if grep -q '^BAMBU_RTSP_PRINTER=.' "$INSTALL_DIR/hom.env" && grep -q '^BAMBU_STREAM_PORT=.' "$INSTALL_DIR/hom.env"; then
-		systemctl enable --now bambu-rtsp-relay.service
-	else
-		systemctl disable --now bambu-rtsp-relay.service 2>/dev/null || true
-	fi
+	systemctl restart pariahbot.service
 fi
 
 printf 'Installation complete. Run the interactive onboarding prompt next:\n  %s/deploy/onboard.sh\n' "$INSTALL_DIR"
