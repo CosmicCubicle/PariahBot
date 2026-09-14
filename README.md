@@ -57,7 +57,7 @@ LOG_CHANNEL_ERROR_ID=
 4. Add the `bot` and `applications.commands` scopes when installing it in a server.
 5. Give it permission to view channels, send messages, embed links, attach files, and read message history.
 
-The bot only requests the Guilds gateway intent, so no privileged gateway intents are required.
+The bot requests the Guilds and Guild Voice States gateway intents (needed for temporary voice channels). Neither is privileged, so no Developer Portal toggles are required.
 
 ## Commands
 
