@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
 const voiceStore = require('../state/voiceChannels');
+const { createDefaultAlertInfra } = require('../lib/defaultAlertInfra');
+const { sendAlert } = require('../lib/alertDelivery');
 
 function requireManageChannels(interaction) {
 	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -33,7 +35,7 @@ async function registerHub(interaction, hub, category) {
 	}
 }
 
-async function handleSetupAdd(interaction) {
+async function handleAdd(interaction) {
 	requireManageChannels(interaction);
 
 	const hub = interaction.options.getChannel('hub');
@@ -47,7 +49,7 @@ async function handleSetupAdd(interaction) {
 	});
 }
 
-async function handleSetupCreate(interaction) {
+async function handleCreate(interaction) {
 	requireManageChannels(interaction);
 
 	const name = interaction.options.getString('name');
@@ -67,7 +69,7 @@ async function handleSetupCreate(interaction) {
 	});
 }
 
-async function handleSetupRemove(interaction) {
+async function handleRemove(interaction) {
 	requireManageChannels(interaction);
 
 	// hub is a string (channel ID), not a resolved channel — the autocomplete
@@ -97,7 +99,7 @@ async function handleSetupRemove(interaction) {
 	// only the reply's wording depends on whether the channel deletion succeeded.
 	const hubName = hub.name;
 	try {
-		await hub.delete('Voice hub removed via /voice setup remove');
+		await hub.delete('Voice hub removed via /voice remove');
 		await interaction.reply({ content: `Removed the **${hubName}** voice hub and deleted its channel.`, ephemeral: true });
 	} catch (error) {
 		await interaction.reply({
@@ -122,7 +124,7 @@ async function handleHubAutocomplete(interaction) {
 	await interaction.respond(choices);
 }
 
-async function handleSetupList(interaction) {
+async function handleList(interaction) {
 	requireManageChannels(interaction);
 
 	const hubs = voiceStore.listHubs(interaction.guildId);
@@ -132,7 +134,7 @@ async function handleSetupList(interaction) {
 		.setColor(0x5865f2);
 
 	if (hubs.length === 0) {
-		embed.setDescription('No voice hubs are configured for this server yet. Use `/voice setup add` to create one.');
+		embed.setDescription('No voice hubs are configured for this server yet. Use `/voice add` or `/voice create` to make one.');
 	} else {
 		for (const hub of hubs) {
 			// Category channels don't reliably resolve as <#id> mentions in Discord's
@@ -149,72 +151,212 @@ async function handleSetupList(interaction) {
 		}
 	}
 
+	const alertChannelId = voiceStore.getAlertChannel(interaction.guildId);
+	const alertRecipients = voiceStore.listAlertRecipients(interaction.guildId);
+	const alertLines = [
+		alertChannelId ? `Channel: <#${alertChannelId}>` : 'Channel: not set',
+		alertRecipients.length > 0 ? `DMs: ${alertRecipients.map((id) => `<@${id}>`).join(', ')}` : 'DMs: none configured',
+	];
+	embed.addFields({ name: 'Hub-desync alerts', value: alertLines.join('\n') });
+
 	await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-const SETUP_HANDLERS = {
-	add: handleSetupAdd,
-	create: handleSetupCreate,
-	remove: handleSetupRemove,
-	list: handleSetupList,
+async function handleAlertChannel(interaction) {
+	requireManageChannels(interaction);
+	const channel = interaction.options.getChannel('channel');
+	voiceStore.setAlertChannel(interaction.guildId, channel.id);
+	await interaction.reply({ content: `Alert channel set to ${channel}.`, ephemeral: true });
+}
+
+async function handleAlertAddRecipient(interaction) {
+	requireManageChannels(interaction);
+	const user = interaction.options.getUser('user');
+	voiceStore.addAlertRecipient(interaction.guildId, user.id);
+	await interaction.reply({ content: `${user} will now be DMed hub-desync alerts.`, ephemeral: true });
+}
+
+async function handleAlertRemoveRecipient(interaction) {
+	requireManageChannels(interaction);
+	const user = interaction.options.getUser('user');
+	const removed = voiceStore.removeAlertRecipient(interaction.guildId, user.id);
+	await interaction.reply({
+		content: removed ? `${user} removed from the DM alert list.` : `${user} wasn't on the DM alert list.`,
+		ephemeral: true,
+	});
+}
+
+async function handleAlertRemoveDefault(interaction) {
+	requireManageChannels(interaction);
+	const settings = voiceStore.getGuildSettings(interaction.guildId);
+
+	if (!settings.defaultCategoryId && !settings.defaultChannelId) {
+		voiceStore.clearDefaultAlertInfra(interaction.guildId);
+		await interaction.reply({
+			content: "There was no default alert channel to remove — it won't be auto-created either from now on.",
+			ephemeral: true,
+		});
+		return;
+	}
+
+	const channel = interaction.guild.channels.cache.get(settings.defaultChannelId);
+	const category = interaction.guild.channels.cache.get(settings.defaultCategoryId);
+	if (channel) await channel.delete('Default alert channel removed via /voice alert remove-default').catch(() => null);
+	if (category) await category.delete('Default alert category removed via /voice alert remove-default').catch(() => null);
+
+	// Sticky: records the opt-out so a future restart doesn't quietly recreate it.
+	voiceStore.clearDefaultAlertInfra(interaction.guildId);
+	await interaction.reply({
+		content: "Removed the default alert category and channel. It won't come back on its own — use `/voice alert restore-default` to bring it back.",
+		ephemeral: true,
+	});
+}
+
+async function handleAlertRestoreDefault(interaction) {
+	requireManageChannels(interaction);
+	const settings = voiceStore.getGuildSettings(interaction.guildId);
+	const categoryStillExists = settings.defaultCategoryId && interaction.guild.channels.cache.has(settings.defaultCategoryId);
+	const channelStillExists = settings.defaultChannelId && interaction.guild.channels.cache.has(settings.defaultChannelId);
+
+	if (categoryStillExists && channelStillExists) {
+		voiceStore.setDefaultAlertInfra(interaction.guildId, settings.defaultCategoryId, settings.defaultChannelId);
+		await interaction.reply({ content: `The default alert channel already exists: <#${settings.defaultChannelId}>.`, ephemeral: true });
+		return;
+	}
+
+	const channel = await createDefaultAlertInfra(interaction.guild);
+	await interaction.reply({ content: `Restored the default alert channel: ${channel}.`, ephemeral: true });
+}
+
+async function handleAlertTest(interaction) {
+	requireManageChannels(interaction);
+
+	const embed = new EmbedBuilder()
+		.setTitle('🔔 Test alert')
+		.setColor(0x5865f2)
+		.setDescription('This is a test alert from PariahBot — if you can see this, your hub-desync alert settings are working.')
+		.setTimestamp();
+
+	const result = await sendAlert(interaction.guild, { embeds: [embed] });
+
+	if (!result.channel && result.dms.length === 0) {
+		await interaction.reply({
+			content: "Nothing is configured to receive alerts yet — use `/voice alert channel` or `/voice alert add-recipient` first (or check `/voice list` for a default channel).",
+			ephemeral: true,
+		});
+		return;
+	}
+
+	const lines = [];
+	if (result.channel) {
+		lines.push(result.channel.ok
+			? `Channel <#${result.channel.id}>: sent ✅`
+			: `Channel <#${result.channel.id}>: failed — ${result.channel.error}`);
+	}
+	for (const dm of result.dms) {
+		lines.push(dm.ok ? `DM to <@${dm.id}>: sent ✅` : `DM to <@${dm.id}>: failed — ${dm.error}`);
+	}
+	await interaction.reply({ content: lines.join('\n'), ephemeral: true });
+}
+
+const HANDLERS = {
+	add: handleAdd,
+	create: handleCreate,
+	remove: handleRemove,
+	list: handleList,
+};
+
+const ALERT_HANDLERS = {
+	channel: handleAlertChannel,
+	'add-recipient': handleAlertAddRecipient,
+	'remove-recipient': handleAlertRemoveRecipient,
+	'remove-default': handleAlertRemoveDefault,
+	'restore-default': handleAlertRestoreDefault,
+	test: handleAlertTest,
 };
 
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('voice')
 		.setDescription('Create and manage temporary voice channels.')
+		.addSubcommand((sub) => sub
+			.setName('add')
+			.setDescription('(Manage Channels) Register an existing voice channel as a hub.')
+			.addChannelOption((option) => option
+				.setName('hub')
+				.setDescription('Voice channel users join to spawn a temp channel')
+				.addChannelTypes(ChannelType.GuildVoice)
+				.setRequired(true))
+			.addStringOption((option) => option
+				.setName('category')
+				.setDescription("Category name (created if missing); defaults to the hub's own category")
+				.setMaxLength(100)
+				.setRequired(false)))
+		.addSubcommand((sub) => sub
+			.setName('create')
+			.setDescription('(Manage Channels) Create a brand-new voice channel and register it as a hub.')
+			.addStringOption((option) => option
+				.setName('name')
+				.setDescription('Name for the new hub channel (defaults to "➕ Join to Create")')
+				.setMaxLength(100)
+				.setRequired(false))
+			.addStringOption((option) => option
+				.setName('category')
+				.setDescription("Category name for the new hub (created if it doesn't exist)")
+				.setMaxLength(100)
+				.setRequired(false)))
+		.addSubcommand((sub) => sub
+			.setName('remove')
+			.setDescription('(Manage Channels) Unregister a voice hub.')
+			.addStringOption((option) => option
+				.setName('hub')
+				.setDescription('The hub to remove')
+				.setAutocomplete(true)
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('list')
+			.setDescription("(Manage Channels) List this server's configured voice hubs and alert settings."))
 		.addSubcommandGroup((group) => group
-			.setName('setup')
-			.setDescription('(Manage Channels) Configure voice hubs for this server.')
+			.setName('alert')
+			.setDescription('(Manage Channels) Configure and test hub-desync alerts.')
 			.addSubcommand((sub) => sub
-				.setName('add')
-				.setDescription('Register an existing voice channel as a hub.')
+				.setName('channel')
+				.setDescription('Set the text channel alerts are posted in.')
 				.addChannelOption((option) => option
-					.setName('hub')
-					.setDescription('Voice channel users join to spawn a temp channel')
-					.addChannelTypes(ChannelType.GuildVoice)
-					.setRequired(true))
-				.addStringOption((option) => option
-					.setName('category')
-					.setDescription("Category name (created if missing); defaults to the hub's own category")
-					.setMaxLength(100)
-					.setRequired(false)))
-			.addSubcommand((sub) => sub
-				.setName('create')
-				.setDescription('Create a brand-new voice channel and register it as a hub.')
-				.addStringOption((option) => option
-					.setName('name')
-					.setDescription('Name for the new hub channel (defaults to "➕ Join to Create")')
-					.setMaxLength(100)
-					.setRequired(false))
-				.addStringOption((option) => option
-					.setName('category')
-					.setDescription("Category name for the new hub (created if it doesn't exist)")
-					.setMaxLength(100)
-					.setRequired(false)))
-			.addSubcommand((sub) => sub
-				.setName('remove')
-				.setDescription('Unregister a voice hub.')
-				.addStringOption((option) => option
-					.setName('hub')
-					.setDescription('The hub to remove')
-					.setAutocomplete(true)
+					.setName('channel')
+					.setDescription('Text channel to post alerts in')
+					.addChannelTypes(ChannelType.GuildText)
 					.setRequired(true)))
 			.addSubcommand((sub) => sub
-				.setName('list')
-				.setDescription("List this server's configured voice hubs."))),
+				.setName('add-recipient')
+				.setDescription('Also DM a user when a hub goes out of sync.')
+				.addUserOption((option) => option
+					.setName('user')
+					.setDescription('User to DM')
+					.setRequired(true)))
+			.addSubcommand((sub) => sub
+				.setName('remove-recipient')
+				.setDescription('Stop DMing a user.')
+				.addUserOption((option) => option
+					.setName('user')
+					.setDescription('User to stop DMing')
+					.setRequired(true)))
+			.addSubcommand((sub) => sub
+				.setName('remove-default')
+				.setDescription("Delete the bot's default alert category/channel and stop auto-recreating it."))
+			.addSubcommand((sub) => sub
+				.setName('restore-default')
+				.setDescription("Recreate the bot's default alert category/channel if it's missing."))
+			.addSubcommand((sub) => sub
+				.setName('test')
+				.setDescription('Send a generic test alert to whatever is currently configured.'))),
 	async execute(interaction) {
 		const group = interaction.options.getSubcommandGroup(false);
 		const subcommand = interaction.options.getSubcommand();
 
-		if (group === 'setup') {
-			const handler = SETUP_HANDLERS[subcommand];
-			if (!handler) throw new Error(`Unknown /voice setup subcommand: ${subcommand}`);
-			await handler(interaction);
-			return;
-		}
-
-		throw new Error(`Unknown /voice subcommand: ${subcommand}`);
+		const handler = group === 'alert' ? ALERT_HANDLERS[subcommand] : HANDLERS[subcommand];
+		if (!handler) throw new Error(`Unknown /voice subcommand: ${group ? `${group} ` : ''}${subcommand}`);
+		await handler(interaction);
 	},
 	async autocomplete(interaction) {
 		const focusedOption = interaction.options.getFocused(true);

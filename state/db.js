@@ -26,6 +26,12 @@ db.exec(`
 		mod_role_id TEXT
 	);
 
+	CREATE TABLE IF NOT EXISTS guild_alert_recipients (
+		guild_id TEXT NOT NULL,
+		user_id  TEXT NOT NULL,
+		PRIMARY KEY (guild_id, user_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS hubs (
 		channel_id    TEXT PRIMARY KEY,
 		guild_id      TEXT NOT NULL,
@@ -49,5 +55,34 @@ db.exec(`
 		max_limit      INTEGER NOT NULL
 	);
 `);
+
+// CREATE TABLE IF NOT EXISTS only helps for genuinely new tables — it does nothing
+// for a column added to a table that already exists in an already-running bot's
+// database (guild_settings shipped in Stage 1 checkpoint 1, unused until now). Any
+// future column addition to an existing table needs the same kind of guarded
+// ALTER TABLE, not just an edit to the CREATE statement above.
+function hasColumn(table, column) {
+	return db.prepare(`PRAGMA table_info(${table})`).all().some((col) => col.name === column);
+}
+
+if (!hasColumn('guild_settings', 'alert_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN alert_channel_id TEXT');
+}
+
+// The bot's own auto-provisioned default alert category/channel — distinct from
+// alert_channel_id (which only ever holds an admin's explicit choice) so an admin
+// override and "what we made as a fallback" never get confused with each other.
+// default_alerts_disabled is a separate sticky flag: without it, a guild where an
+// admin explicitly removed the default would look identical (both columns null) to
+// a guild that never had one, and the next restart would silently recreate it.
+if (!hasColumn('guild_settings', 'default_category_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN default_category_id TEXT');
+}
+if (!hasColumn('guild_settings', 'default_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN default_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'default_alerts_disabled')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN default_alerts_disabled INTEGER NOT NULL DEFAULT 0');
+}
 
 module.exports = db;

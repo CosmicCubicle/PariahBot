@@ -52,9 +52,14 @@ module.exports = {
 			.setTimestamp();
 
 		for (const command of commands) {
+			// The usage list goes in the field's value, not its name: Discord caps a
+			// field name at 256 characters but a value at 1024, and a command with
+			// several subcommands (like /voice) easily produces a usage list longer
+			// than 256 chars on its own — putting it in the name broke /help outright
+			// once /voice grew past ~5 subcommands.
 			embed.addFields({
-				name: formatCommand(command),
-				value: command.data.description,
+				name: `/${command.data.name}`,
+				value: `${command.data.description}\n${formatCommand(command)}`,
 			});
 		}
 
