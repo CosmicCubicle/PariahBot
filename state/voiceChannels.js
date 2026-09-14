@@ -1,0 +1,100 @@
+const db = require('./db');
+
+function mapHub(row) {
+	if (!row) return null;
+	return {
+		channelId: row.channel_id,
+		guildId: row.guild_id,
+		categoryId: row.category_id,
+		nameTemplate: row.name_template,
+		defaultLimit: row.default_limit,
+		minLimit: row.min_limit,
+		maxLimit: row.max_limit,
+	};
+}
+
+function mapTempChannel(row) {
+	if (!row) return null;
+	return {
+		channelId: row.channel_id,
+		guildId: row.guild_id,
+		hubChannelId: row.hub_channel_id,
+		ownerId: row.owner_id,
+		createdAt: row.created_at,
+		minLimit: row.min_limit,
+		maxLimit: row.max_limit,
+	};
+}
+
+const insertHubStmt = db.prepare(`
+	INSERT INTO hubs (channel_id, guild_id, category_id)
+	VALUES (@channelId, @guildId, @categoryId)
+`);
+
+// Throws (SqliteError, unique constraint) if channelId is already a hub;
+// the command layer decides how to surface that to the admin.
+function addHub(guildId, channelId, categoryId) {
+	insertHubStmt.run({ guildId, channelId, categoryId: categoryId ?? null });
+}
+
+const deleteHubStmt = db.prepare('DELETE FROM hubs WHERE channel_id = ?');
+
+function removeHub(channelId) {
+	return deleteHubStmt.run(channelId).changes > 0;
+}
+
+const selectHubStmt = db.prepare('SELECT * FROM hubs WHERE channel_id = ?');
+
+function getHub(channelId) {
+	return mapHub(selectHubStmt.get(channelId));
+}
+
+const selectHubsForGuildStmt = db.prepare('SELECT * FROM hubs WHERE guild_id = ? ORDER BY channel_id');
+
+function listHubs(guildId) {
+	return selectHubsForGuildStmt.all(guildId).map(mapHub);
+}
+
+const insertTempChannelStmt = db.prepare(`
+	INSERT INTO temp_channels (channel_id, guild_id, hub_channel_id, owner_id, created_at, min_limit, max_limit)
+	VALUES (@channelId, @guildId, @hubChannelId, @ownerId, @createdAt, @minLimit, @maxLimit)
+`);
+
+function createTempChannel({ channelId, guildId, hubChannelId, ownerId, minLimit, maxLimit }) {
+	insertTempChannelStmt.run({
+		channelId,
+		guildId,
+		hubChannelId,
+		ownerId,
+		createdAt: new Date().toISOString(),
+		minLimit,
+		maxLimit,
+	});
+}
+
+const deleteTempChannelStmt = db.prepare('DELETE FROM temp_channels WHERE channel_id = ?');
+
+function removeTempChannel(channelId) {
+	return deleteTempChannelStmt.run(channelId).changes > 0;
+}
+
+const selectTempChannelStmt = db.prepare('SELECT * FROM temp_channels WHERE channel_id = ?');
+
+function getTempChannel(channelId) {
+	return mapTempChannel(selectTempChannelStmt.get(channelId));
+}
+
+function isTempChannel(channelId) {
+	return getTempChannel(channelId) !== null;
+}
+
+module.exports = {
+	addHub,
+	removeHub,
+	getHub,
+	listHubs,
+	createTempChannel,
+	removeTempChannel,
+	getTempChannel,
+	isTempChannel,
+};

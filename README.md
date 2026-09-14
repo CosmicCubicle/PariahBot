@@ -13,9 +13,10 @@ PariahBot is a small Discord bot foundation built with Discord.js. It dynamicall
 
 ## Requirements
 
-- Node.js 20 or newer.
+- Node.js 24 or newer (LTS).
 - A Discord application with a bot token and application ID.
 - A guild ID is optional, but makes command registration immediate for one test server.
+- `better-sqlite3` is pinned to `12.11.1` in `package.json` — the last release with a prebuilt binary; 13.0.0+ compiles from source on every install instead. If the Node requirement above is ever raised, re-check that package's GitHub releases for a version whose prebuilds cover the new minimum before bumping it (see the comment in `state/db.js`).
 
 ## Local Setup
 
@@ -83,7 +84,7 @@ Run onboarding after installation:
 /opt/PariahBot/deploy/onboard.sh
 ```
 
-The installer creates `hom.env` from `.env.example`, installs Node.js 20 with `nvm`, installs production dependencies, registers `pariahbot.service`, and schedules the GitHub sync script every 15 minutes.
+The installer creates `hom.env` from `.env.example`, installs Node.js 24 with `nvm`, installs production dependencies, registers `pariahbot.service`, and schedules the GitHub sync script every 15 minutes.
 
 Useful operations:
 

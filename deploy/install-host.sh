@@ -44,8 +44,8 @@ sudo -u "$BOT_USER" HOME="$BOT_HOME" bash -lc '
 		curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 	fi
 	. "$NVM_DIR/nvm.sh"
-	nvm install 20
-	nvm alias default 20
+	nvm install 24
+	nvm alias default 24
 	cd /opt/PariahBot
 	npm ci --omit=dev
 '
