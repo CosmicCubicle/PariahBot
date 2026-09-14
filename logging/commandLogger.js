@@ -12,15 +12,32 @@ function ensureLogDir() {
 	if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
+function flattenOptions(options) {
+	if (!options?.length) return [];
+	// Subcommands and subcommand groups nest their real arguments one or two
+	// levels deep instead of carrying a value themselves.
+	return options.flatMap((option) => (option.options?.length ? flattenOptions(option.options) : [option]));
+}
+
 function formatOptions(interaction) {
-	if (!interaction.options?.data?.length) return '';
-	return interaction.options.data.map((opt) => `${opt.name}=${opt.value}`).join(', ');
+	const options = flattenOptions(interaction.options?.data);
+	if (!options.length) return '';
+	return options.map((opt) => `${opt.name}=${opt.value}`).join(', ');
+}
+
+function formatCommandName(interaction) {
+	const parts = [interaction.commandName];
+	const group = interaction.options?.getSubcommandGroup?.(false);
+	if (group) parts.push(group);
+	const subcommand = interaction.options?.getSubcommand?.(false);
+	if (subcommand) parts.push(subcommand);
+	return parts.join(' ');
 }
 
 function buildEntry(interaction, status, durationMs, error) {
 	return {
 		timestamp: new Date().toISOString(),
-		command: interaction.commandName,
+		command: formatCommandName(interaction),
 		options: formatOptions(interaction),
 		user: `${interaction.user.tag} (${interaction.user.id})`,
 		guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',

@@ -1,9 +1,45 @@
 const { Events } = require('discord.js');
 const commandLogger = require('../logging/commandLogger');
+const { handleHubButtonInteraction } = require('../lib/hubDesync');
 
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
+		if (interaction.isButton()) {
+			// Not run through the audit logger like slash commands — these are
+			// Prune/Restore clicks on a hub-desync notice, not a /command invocation,
+			// and handleHubButtonInteraction reports its own outcome directly to the
+			// clicker either way.
+			try {
+				const handled = await handleHubButtonInteraction(interaction);
+				if (!handled) return; // some other feature's button, not ours
+			} catch (error) {
+				console.error('Button interaction failed:', error);
+				const errorReply = { content: `Something went wrong: ${error.message}`, ephemeral: true };
+				if (interaction.replied || interaction.deferred) {
+					await interaction.followUp(errorReply).catch(() => null);
+				} else {
+					await interaction.reply(errorReply).catch(() => null);
+				}
+			}
+			return;
+		}
+
+		if (interaction.isAutocomplete()) {
+			// Fires on every keystroke while typing an autocompleted option, so this
+			// intentionally skips the audit log (would be pure noise) and fails silently
+			// on error — there's no user-facing way to surface an error here beyond an
+			// empty suggestion list, unlike a real command's ephemeral error reply.
+			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command?.autocomplete) return;
+			try {
+				await command.autocomplete(interaction);
+			} catch (error) {
+				console.error(`Autocomplete error for /${interaction.commandName}:`, error);
+			}
+			return;
+		}
+
 		if (!interaction.isChatInputCommand()) return;
 
 		const command = interaction.client.commands.get(interaction.commandName);
