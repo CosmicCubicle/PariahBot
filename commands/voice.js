@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = 
 const voiceStore = require('../state/voiceChannels');
 const { createDefaultAlertInfra } = require('../lib/defaultAlertInfra');
 const { sendAlert } = require('../lib/alertDelivery');
+const { findDeadHubs, buildDeadHubMessage } = require('../lib/hubDesync');
 
 function requireManageChannels(interaction) {
 	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -106,6 +107,26 @@ async function handleRemove(interaction) {
 			content: `Unregistered **${hubName}** as a voice hub, but couldn't delete the channel itself: ${error.message}`,
 			ephemeral: true,
 		});
+	}
+}
+
+async function handleAudit(interaction) {
+	requireManageChannels(interaction);
+
+	// Same detection lib/hubDesync.js's startup sweep uses, rendered as a direct
+	// reply instead of pushed to the configured alert destinations — for checking
+	// on demand rather than waiting for a restart.
+	const deadHubs = findDeadHubs(interaction.guild);
+
+	if (deadHubs.length === 0) {
+		await interaction.reply({ content: 'All configured hubs are healthy — nothing to prune or restore.', ephemeral: true });
+		return;
+	}
+
+	const [first, ...rest] = deadHubs;
+	await interaction.reply({ ...buildDeadHubMessage(first), ephemeral: true });
+	for (const hub of rest) {
+		await interaction.followUp({ ...buildDeadHubMessage(hub), ephemeral: true });
 	}
 }
 
@@ -264,6 +285,7 @@ const HANDLERS = {
 	create: handleCreate,
 	remove: handleRemove,
 	list: handleList,
+	audit: handleAudit,
 };
 
 const ALERT_HANDLERS = {
@@ -316,6 +338,9 @@ module.exports = {
 		.addSubcommand((sub) => sub
 			.setName('list')
 			.setDescription("(Manage Channels) List this server's configured voice hubs and alert settings."))
+		.addSubcommand((sub) => sub
+			.setName('audit')
+			.setDescription('(Manage Channels) Check for hubs whose channel no longer exists, with options to prune or restore.'))
 		.addSubcommandGroup((group) => group
 			.setName('alert')
 			.setDescription('(Manage Channels) Configure and test hub-desync alerts.')

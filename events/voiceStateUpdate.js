@@ -1,5 +1,6 @@
 const { Events, ChannelType, PermissionFlagsBits } = require('discord.js');
 const voiceStore = require('../state/voiceChannels');
+const { cleanupIfEmpty, reconcileTempChannels } = require('../lib/tempChannelCleanup');
 
 function buildChannelName(nameTemplate, member) {
 	return nameTemplate.replace('{owner}', member.displayName).slice(0, 100);
@@ -61,23 +62,6 @@ async function createTempChannel(member, hub, hubChannel) {
 	}
 }
 
-async function cleanupIfEmpty(channel) {
-	if (!channel || !voiceStore.isTempChannel(channel.id)) return;
-	if (channel.members.size > 0) return;
-
-	// Unregister first: the database write is local and effectively can't fail,
-	// while the Discord API call below can (already deleted, rate limit) — so the
-	// channel is reliably gone from our tracking either way. Same ordering as
-	// /voice setup remove, for the same reason.
-	voiceStore.removeTempChannel(channel.id);
-	try {
-		await channel.delete('Temporary voice channel emptied.');
-	} catch (error) {
-		// 10003 = Unknown Channel — already gone (e.g. deleted manually), nothing to do.
-		if (error.code !== 10003) console.error(`Failed to delete empty temp channel ${channel.id}:`, error.message);
-	}
-}
-
 module.exports = {
 	name: Events.VoiceStateUpdate,
 	async execute(oldState, newState) {
@@ -89,6 +73,15 @@ module.exports = {
 		if (changedChannel && newState.channelId && newState.member) {
 			const hub = voiceStore.getHub(newState.channelId);
 			if (hub) {
+				// Opportunistic, cache-only, guild-scoped: catches drift the bot missed
+				// while offline or during a brief gateway resume, right when someone's
+				// actually using the hub — no timer needed. See Stage 1 checkpoint 5b.
+				try {
+					await reconcileTempChannels(newState.guild);
+				} catch (error) {
+					console.error(`Failed to reconcile temp channels for guild ${newState.guild.id}:`, error.message);
+				}
+
 				try {
 					await createTempChannel(newState.member, hub, newState.channel);
 				} catch (error) {

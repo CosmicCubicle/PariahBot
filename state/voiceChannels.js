@@ -55,6 +55,16 @@ function listHubs(guildId) {
 	return selectHubsForGuildStmt.all(guildId).map(mapHub);
 }
 
+// SQLite allows updating a PRIMARY KEY column's value directly (as long as it
+// doesn't collide with an existing row), so "restoring" a dead hub under a new
+// channel ID is a single UPDATE rather than a delete-then-reinsert — every other
+// column (category, name template, limits) carries over unchanged automatically.
+const migrateHubStmt = db.prepare('UPDATE hubs SET channel_id = ? WHERE channel_id = ?');
+
+function migrateHubChannel(oldChannelId, newChannelId) {
+	return migrateHubStmt.run(newChannelId, oldChannelId).changes > 0;
+}
+
 const insertTempChannelStmt = db.prepare(`
 	INSERT INTO temp_channels (channel_id, guild_id, hub_channel_id, owner_id, created_at, min_limit, max_limit)
 	VALUES (@channelId, @guildId, @hubChannelId, @ownerId, @createdAt, @minLimit, @maxLimit)
@@ -86,6 +96,12 @@ function getTempChannel(channelId) {
 
 function isTempChannel(channelId) {
 	return getTempChannel(channelId) !== null;
+}
+
+const selectTempChannelsForGuildStmt = db.prepare('SELECT * FROM temp_channels WHERE guild_id = ? ORDER BY channel_id');
+
+function listTempChannelsForGuild(guildId) {
+	return selectTempChannelsForGuildStmt.all(guildId).map(mapTempChannel);
 }
 
 // Alert routing (Stage 1 checkpoint 5): where a hub-desync notice gets sent for a
@@ -183,6 +199,8 @@ module.exports = {
 	removeTempChannel,
 	getTempChannel,
 	isTempChannel,
+	listTempChannelsForGuild,
+	migrateHubChannel,
 	setAlertChannel,
 	getAlertChannel,
 	addAlertRecipient,
