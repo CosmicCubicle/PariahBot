@@ -4,6 +4,21 @@ const commandLogger = require('../logging/commandLogger');
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
+		if (interaction.isAutocomplete()) {
+			// Fires on every keystroke while typing an autocompleted option, so this
+			// intentionally skips the audit log (would be pure noise) and fails silently
+			// on error — there's no user-facing way to surface an error here beyond an
+			// empty suggestion list, unlike a real command's ephemeral error reply.
+			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command?.autocomplete) return;
+			try {
+				await command.autocomplete(interaction);
+			} catch (error) {
+				console.error(`Autocomplete error for /${interaction.commandName}:`, error);
+			}
+			return;
+		}
+
 		if (!interaction.isChatInputCommand()) return;
 
 		const command = interaction.client.commands.get(interaction.commandName);
