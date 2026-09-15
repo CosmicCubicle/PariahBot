@@ -84,5 +84,8 @@ if (!hasColumn('guild_settings', 'default_channel_id')) {
 if (!hasColumn('guild_settings', 'default_alerts_disabled')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN default_alerts_disabled INTEGER NOT NULL DEFAULT 0');
 }
+if (!hasColumn('guild_settings', 'owner_kick_disabled')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN owner_kick_disabled INTEGER NOT NULL DEFAULT 0');
+}
 
 module.exports = db;

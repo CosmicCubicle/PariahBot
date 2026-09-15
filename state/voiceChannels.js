@@ -98,6 +98,15 @@ function isTempChannel(channelId) {
 	return getTempChannel(channelId) !== null;
 }
 
+const setTempChannelOwnerStmt = db.prepare('UPDATE temp_channels SET owner_id = ? WHERE channel_id = ?');
+
+// Used by /vc claim and /vc transfer — the command layer also has to move the
+// channel's actual permission overwrites (see commands/vc.js), this only
+// updates who our own tracking says owns it.
+function setTempChannelOwner(channelId, newOwnerId) {
+	return setTempChannelOwnerStmt.run(newOwnerId, channelId).changes > 0;
+}
+
 const selectTempChannelsForGuildStmt = db.prepare('SELECT * FROM temp_channels WHERE guild_id = ? ORDER BY channel_id');
 
 function listTempChannelsForGuild(guildId) {
@@ -115,4 +124,5 @@ module.exports = {
 	isTempChannel,
 	listTempChannelsForGuild,
 	migrateHubChannel,
+	setTempChannelOwner,
 };
