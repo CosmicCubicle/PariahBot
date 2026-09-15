@@ -68,11 +68,14 @@ async function handleRemove(interaction) {
 	requireAdmin(interaction);
 
 	// hub is a string (channel ID), not a resolved channel — the autocomplete
-	// handler below only ever suggests real hubs, but Discord doesn't enforce
-	// that a string+autocomplete option's submitted value came from a suggestion,
-	// so this can still legitimately be "wasn't a hub" (someone typed their own).
+	// handler below only ever suggests real hubs from this guild, but Discord
+	// doesn't enforce that a string+autocomplete option's submitted value came
+	// from a suggestion (or even from this guild), so this can still
+	// legitimately be "wasn't a hub" — and removeHub is scoped to this guild's
+	// ID specifically so a hub belonging to a different guild the bot is also
+	// in can't be unregistered this way.
 	const hubId = interaction.options.getString('hub');
-	const removed = voiceStore.removeHub(hubId);
+	const removed = voiceStore.removeHub(hubId, interaction.guildId);
 
 	if (!removed) {
 		await interaction.reply({ content: `<#${hubId}> wasn't a voice hub.`, ephemeral: true });

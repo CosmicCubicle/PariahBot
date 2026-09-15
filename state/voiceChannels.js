@@ -37,10 +37,16 @@ function addHub(guildId, channelId, categoryId) {
 	insertHubStmt.run({ guildId, channelId, categoryId: categoryId ?? null });
 }
 
-const deleteHubStmt = db.prepare('DELETE FROM hubs WHERE channel_id = ?');
+// guild_id is part of the WHERE, not just channel_id: channelId here comes
+// from a free-typed string option (see commands/voice.js's handleRemove), not
+// a Discord channel-type option, so nothing stops someone from typing a hub
+// channel ID that belongs to a *different* guild the bot is also in. Scoping
+// the delete to this guild makes that a no-op instead of letting one guild's
+// admin unregister another guild's hub.
+const deleteHubStmt = db.prepare('DELETE FROM hubs WHERE channel_id = ? AND guild_id = ?');
 
-function removeHub(channelId) {
-	return deleteHubStmt.run(channelId).changes > 0;
+function removeHub(channelId, guildId) {
+	return deleteHubStmt.run(channelId, guildId).changes > 0;
 }
 
 const selectHubStmt = db.prepare('SELECT * FROM hubs WHERE channel_id = ?');

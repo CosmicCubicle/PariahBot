@@ -78,6 +78,16 @@ db.exec(`
 		descriptor TEXT,
 		PRIMARY KEY (message_id, role_id)
 	);
+
+	-- max_messages/live_seconds: 0 means "not used" — at least one must be
+	-- nonzero for a row to exist at all (enforced by the command layer, not
+	-- here). The live message list itself isn't stored: see lib/autoDelete.js.
+	CREATE TABLE IF NOT EXISTS autodelete_channels (
+		channel_id   TEXT PRIMARY KEY,
+		guild_id     TEXT NOT NULL,
+		max_messages INTEGER NOT NULL DEFAULT 0,
+		live_seconds INTEGER NOT NULL DEFAULT 0
+	);
 `);
 
 // CREATE TABLE IF NOT EXISTS only helps for genuinely new tables — it does nothing
