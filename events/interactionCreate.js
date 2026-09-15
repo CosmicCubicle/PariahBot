@@ -1,26 +1,41 @@
 const { Events } = require('discord.js');
 const commandLogger = require('../logging/commandLogger');
 const { handleHubButtonInteraction } = require('../lib/hubDesync');
+const { handleWizardInteraction } = require('../lib/hubCreateWizard');
+
+async function reportComponentError(interaction, error) {
+	console.error('Component interaction failed:', error);
+	const errorReply = { content: `Something went wrong: ${error.message}`, ephemeral: true };
+	if (interaction.replied || interaction.deferred) {
+		await interaction.followUp(errorReply).catch(() => null);
+	} else {
+		await interaction.reply(errorReply).catch(() => null);
+	}
+}
 
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
+		// Buttons are shared across two unrelated features (hub-desync Prune/Restore
+		// and the /voice create wizard's Continue/Cancel) — each handler returns
+		// false for a customId it doesn't own, so trying them in sequence is safe.
+		// Neither goes through the audit logger like slash commands do; both report
+		// their own outcome directly to whoever clicked.
 		if (interaction.isButton()) {
-			// Not run through the audit logger like slash commands — these are
-			// Prune/Restore clicks on a hub-desync notice, not a /command invocation,
-			// and handleHubButtonInteraction reports its own outcome directly to the
-			// clicker either way.
 			try {
-				const handled = await handleHubButtonInteraction(interaction);
-				if (!handled) return; // some other feature's button, not ours
+				if (await handleHubButtonInteraction(interaction)) return;
+				if (await handleWizardInteraction(interaction)) return;
 			} catch (error) {
-				console.error('Button interaction failed:', error);
-				const errorReply = { content: `Something went wrong: ${error.message}`, ephemeral: true };
-				if (interaction.replied || interaction.deferred) {
-					await interaction.followUp(errorReply).catch(() => null);
-				} else {
-					await interaction.reply(errorReply).catch(() => null);
-				}
+				await reportComponentError(interaction, error);
+			}
+			return;
+		}
+
+		if (interaction.isChannelSelectMenu() || interaction.isModalSubmit()) {
+			try {
+				await handleWizardInteraction(interaction);
+			} catch (error) {
+				await reportComponentError(interaction, error);
 			}
 			return;
 		}

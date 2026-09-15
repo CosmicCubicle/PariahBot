@@ -6,9 +6,32 @@ function buildChannelName(nameTemplate, member) {
 	return nameTemplate.replace('{owner}', member.displayName).slice(0, 100);
 }
 
+// Discord caps a category at 50 channels. Falls back to the hub's configured
+// overflow category (set via the /voice create wizard) once the primary one
+// hits that — checked against the live cache, so it's always the true current
+// count, not a value that could drift out of sync in our own database. If the
+// overflow is missing or also full, this just returns the primary category id
+// unchanged and lets Discord's own API error surface through channel creation
+// below, same as any other channel-creation failure.
+const CATEGORY_CHANNEL_CAP = 50;
+
+function resolveCategoryForNewChannel(guild, hub, hubChannel) {
+	const primaryCategoryId = hub.categoryId ?? hubChannel.parentId ?? null;
+	if (!primaryCategoryId) return null;
+
+	const channelsInPrimary = guild.channels.cache.filter((channel) => channel.parentId === primaryCategoryId).size;
+	if (channelsInPrimary < CATEGORY_CHANNEL_CAP) return primaryCategoryId;
+
+	if (hub.overflowCategoryId && guild.channels.cache.has(hub.overflowCategoryId)) {
+		return hub.overflowCategoryId;
+	}
+
+	return primaryCategoryId;
+}
+
 async function createTempChannel(member, hub, hubChannel) {
 	const guild = member.guild;
-	const categoryId = hub.categoryId ?? hubChannel.parentId ?? null;
+	const categoryId = resolveCategoryForNewChannel(guild, hub, hubChannel);
 	const category = categoryId ? guild.channels.cache.get(categoryId) : null;
 
 	// Channel creation via the API doesn't inherit a category's permission

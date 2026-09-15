@@ -33,13 +33,14 @@ db.exec(`
 	);
 
 	CREATE TABLE IF NOT EXISTS hubs (
-		channel_id    TEXT PRIMARY KEY,
-		guild_id      TEXT NOT NULL,
-		category_id   TEXT,
-		name_template TEXT NOT NULL DEFAULT '🔊 {owner}''s channel',
-		default_limit INTEGER NOT NULL DEFAULT 0,
-		min_limit     INTEGER NOT NULL DEFAULT 0,
-		max_limit     INTEGER NOT NULL DEFAULT 99
+		channel_id          TEXT PRIMARY KEY,
+		guild_id            TEXT NOT NULL,
+		category_id         TEXT,
+		overflow_category_id TEXT,
+		name_template       TEXT NOT NULL DEFAULT '🔊 {owner}''s channel',
+		default_limit       INTEGER NOT NULL DEFAULT 0,
+		min_limit           INTEGER NOT NULL DEFAULT 0,
+		max_limit           INTEGER NOT NULL DEFAULT 99
 	);
 
 	-- hub_channel_id intentionally has no FK constraint to hubs.channel_id:
@@ -86,6 +87,9 @@ if (!hasColumn('guild_settings', 'default_alerts_disabled')) {
 }
 if (!hasColumn('guild_settings', 'owner_kick_disabled')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN owner_kick_disabled INTEGER NOT NULL DEFAULT 0');
+}
+if (!hasColumn('hubs', 'overflow_category_id')) {
+	db.exec('ALTER TABLE hubs ADD COLUMN overflow_category_id TEXT');
 }
 
 module.exports = db;

@@ -1,7 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const voiceStore = require('../state/voiceChannels');
 const guildSettings = require('../state/guildSettings');
 const { findDeadHubs, buildDeadHubMessage } = require('../lib/hubDesync');
+const { startSession, getSession, buildWizardMessage } = require('../lib/hubCreateWizard');
 
 function requireManageChannels(interaction) {
 	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -9,64 +10,20 @@ function requireManageChannels(interaction) {
 	}
 }
 
-// Category names aren't unique in Discord, so if more than one existing category
-// shares this name, the first match in the cache wins rather than erroring — good
-// enough for this feature, since categories are just a placement hint, not an
-// identity anything else depends on.
-async function resolveOrCreateCategory(interaction, name) {
-	if (!name) return null;
-
-	const existing = interaction.guild.channels.cache.find(
-		(channel) => channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === name.toLowerCase(),
-	);
-	if (existing) return existing;
-
-	return interaction.guild.channels.create({ name, type: ChannelType.GuildCategory });
-}
-
-async function registerHub(interaction, hub, category) {
-	try {
-		voiceStore.addHub(interaction.guildId, hub.id, category?.id ?? null);
-	} catch (error) {
-		if (error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-			throw new Error(`${hub} is already a voice hub.`);
-		}
-		throw error;
-	}
-}
-
-async function handleAdd(interaction) {
-	requireManageChannels(interaction);
-
-	const hub = interaction.options.getChannel('hub');
-	const category = await resolveOrCreateCategory(interaction, interaction.options.getString('category'));
-
-	await registerHub(interaction, hub, category);
-
-	await interaction.reply({
-		content: `Registered ${hub} as a voice hub — joining it will create a temporary channel${category ? ` in ${category}` : ''}.`,
-		ephemeral: true,
-	});
-}
-
+// /voice create used to take name/category as slash-command options and build
+// the hub in one shot. It's now a multi-step wizard (select menus for
+// category/overflow category, then a modal for name + limits — see
+// lib/hubCreateWizard.js) so a hub can be fully configured without a pile of
+// optional params. /voice add (registering an existing channel) was removed
+// entirely rather than given the same treatment: reconciling an arbitrary
+// existing channel's current state against the new config options was judged
+// more complexity than it was worth — every hub now goes through the wizard.
 async function handleCreate(interaction) {
 	requireManageChannels(interaction);
 
-	const name = interaction.options.getString('name');
-	const category = await resolveOrCreateCategory(interaction, interaction.options.getString('category'));
-
-	const hub = await interaction.guild.channels.create({
-		name: name ?? '➕ Join to Create',
-		type: ChannelType.GuildVoice,
-		parent: category?.id ?? undefined,
-	});
-
-	await registerHub(interaction, hub, category);
-
-	await interaction.reply({
-		content: `Created ${hub} as a voice hub — joining it will create a temporary channel${category ? ` in ${category}` : ''}.`,
-		ephemeral: true,
-	});
+	const sessionId = startSession(interaction.guildId);
+	const session = getSession(sessionId);
+	await interaction.reply({ ...buildWizardMessage(interaction.guild, sessionId, session), ephemeral: true });
 }
 
 async function handleRemove(interaction) {
@@ -179,19 +136,24 @@ async function handleList(interaction) {
 		.setColor(0x5865f2);
 
 	if (hubs.length === 0) {
-		embed.setDescription('No voice hubs are configured for this server yet. Use `/voice add` or `/voice create` to make one.');
+		embed.setDescription('No voice hubs are configured for this server yet. Use `/voice create` to make one.');
 	} else {
 		for (const hub of hubs) {
 			// Category channels don't reliably resolve as <#id> mentions in Discord's
 			// client, so show the name directly rather than a broken-looking mention.
-			let categoryLabel = 'same as the hub';
+			let categoryLabel = 'none';
 			if (hub.categoryId) {
 				const category = interaction.guild.channels.cache.get(hub.categoryId);
 				categoryLabel = category ? category.name : 'configured category no longer exists';
 			}
+			let overflowLabel = 'none';
+			if (hub.overflowCategoryId) {
+				const overflow = interaction.guild.channels.cache.get(hub.overflowCategoryId);
+				overflowLabel = overflow ? overflow.name : 'configured overflow category no longer exists';
+			}
 			embed.addFields({
 				name: `<#${hub.channelId}>`,
-				value: `Category: ${categoryLabel}`,
+				value: `Category: ${categoryLabel}\nOverflow category: ${overflowLabel}\nTemp channel names: ${hub.nameTemplate}\nUser limit range: ${hub.minLimit}-${hub.maxLimit}`,
 			});
 		}
 	}
@@ -203,7 +165,6 @@ async function handleList(interaction) {
 }
 
 const HANDLERS = {
-	add: handleAdd,
 	create: handleCreate,
 	remove: handleRemove,
 	list: handleList,
@@ -219,31 +180,8 @@ module.exports = {
 		.setName('voice')
 		.setDescription('Create and manage temporary voice channels.')
 		.addSubcommand((sub) => sub
-			.setName('add')
-			.setDescription('(Manage Channels) Register an existing voice channel as a hub.')
-			.addChannelOption((option) => option
-				.setName('hub')
-				.setDescription('Voice channel users join to spawn a temp channel')
-				.addChannelTypes(ChannelType.GuildVoice)
-				.setRequired(true))
-			.addStringOption((option) => option
-				.setName('category')
-				.setDescription("Category name (created if missing); defaults to the hub's own category")
-				.setMaxLength(100)
-				.setRequired(false)))
-		.addSubcommand((sub) => sub
 			.setName('create')
-			.setDescription('(Manage Channels) Create a brand-new voice channel and register it as a hub.')
-			.addStringOption((option) => option
-				.setName('name')
-				.setDescription('Name for the new hub channel (defaults to "➕ Join to Create")')
-				.setMaxLength(100)
-				.setRequired(false))
-			.addStringOption((option) => option
-				.setName('category')
-				.setDescription("Category name for the new hub (created if it doesn't exist)")
-				.setMaxLength(100)
-				.setRequired(false)))
+			.setDescription('(Manage Channels) Create a new voice hub, configured through a short setup flow.'))
 		.addSubcommand((sub) => sub
 			.setName('remove')
 			.setDescription('(Manage Channels) Unregister a voice hub.')

@@ -6,6 +6,7 @@ function mapHub(row) {
 		channelId: row.channel_id,
 		guildId: row.guild_id,
 		categoryId: row.category_id,
+		overflowCategoryId: row.overflow_category_id,
 		nameTemplate: row.name_template,
 		defaultLimit: row.default_limit,
 		minLimit: row.min_limit,
@@ -27,14 +28,24 @@ function mapTempChannel(row) {
 }
 
 const insertHubStmt = db.prepare(`
-	INSERT INTO hubs (channel_id, guild_id, category_id)
-	VALUES (@channelId, @guildId, @categoryId)
+	INSERT INTO hubs (channel_id, guild_id, category_id, overflow_category_id, name_template, default_limit, min_limit, max_limit)
+	VALUES (@channelId, @guildId, @categoryId, @overflowCategoryId, @nameTemplate, @defaultLimit, @minLimit, @maxLimit)
 `);
 
-// Throws (SqliteError, unique constraint) if channelId is already a hub;
-// the command layer decides how to surface that to the admin.
-function addHub(guildId, channelId, categoryId) {
-	insertHubStmt.run({ guildId, channelId, categoryId: categoryId ?? null });
+// Defaults here mirror the schema's own column defaults (state/db.js) — spelled
+// out in JS rather than left to SQL so every caller (the hub-create wizard,
+// tests) can see exactly what "unconfigured" means without reading the schema.
+// Throws (SqliteError, unique constraint) if channelId is already a hub; the
+// command layer decides how to surface that to the admin.
+function addHub(guildId, channelId, {
+	categoryId = null,
+	overflowCategoryId = null,
+	nameTemplate = "🔊 {owner}'s channel",
+	defaultLimit = 0,
+	minLimit = 0,
+	maxLimit = 99,
+} = {}) {
+	insertHubStmt.run({ guildId, channelId, categoryId, overflowCategoryId, nameTemplate, defaultLimit, minLimit, maxLimit });
 }
 
 const deleteHubStmt = db.prepare('DELETE FROM hubs WHERE channel_id = ?');
