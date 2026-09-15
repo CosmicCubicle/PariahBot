@@ -128,6 +128,9 @@ if (hasColumn('role_menus', 'type')) {
 	db.exec('ALTER TABLE role_menus DROP COLUMN type');
 }
 if (hasColumn('role_menu_options', 'emoji')) {
+	// The old reaction-roles unique index on (message_id, emoji) has to go first —
+	// SQLite refuses to drop a column an index still references.
+	db.exec('DROP INDEX IF EXISTS idx_role_menu_options_emoji');
 	db.exec('ALTER TABLE role_menu_options DROP COLUMN emoji');
 }
 if (hasColumn('role_menu_options', 'label')) {
