@@ -48,6 +48,18 @@ function addHub(guildId, channelId, {
 	insertHubStmt.run({ guildId, channelId, categoryId, overflowCategoryId, nameTemplate, defaultLimit, minLimit, maxLimit });
 }
 
+const updateHubStmt = db.prepare(`
+	UPDATE hubs
+	SET category_id = @categoryId, overflow_category_id = @overflowCategoryId,
+		name_template = @nameTemplate, default_limit = @defaultLimit, min_limit = @minLimit, max_limit = @maxLimit
+	WHERE channel_id = @channelId
+`);
+
+// Used by /voice edit.
+function updateHub(channelId, { categoryId = null, overflowCategoryId = null, nameTemplate, defaultLimit, minLimit, maxLimit }) {
+	return updateHubStmt.run({ channelId, categoryId, overflowCategoryId, nameTemplate, defaultLimit, minLimit, maxLimit }).changes > 0;
+}
+
 const deleteHubStmt = db.prepare('DELETE FROM hubs WHERE channel_id = ?');
 
 function removeHub(channelId) {
@@ -126,6 +138,7 @@ function listTempChannelsForGuild(guildId) {
 
 module.exports = {
 	addHub,
+	updateHub,
 	removeHub,
 	getHub,
 	listHubs,

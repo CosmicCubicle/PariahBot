@@ -16,22 +16,23 @@ async function reportComponentError(interaction, error) {
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
-		// Buttons are shared across two unrelated features (hub-desync Prune/Restore
-		// and the /voice create wizard's Continue/Cancel) — each handler returns
-		// false for a customId it doesn't own, so trying them in sequence is safe.
-		// Neither goes through the audit logger like slash commands do; both report
-		// their own outcome directly to whoever clicked.
+		// Not run through the audit logger like slash commands are — these are
+		// Prune/Restore clicks on a hub-desync notice, not a /command invocation,
+		// and handleHubButtonInteraction reports its own outcome directly to the
+		// clicker either way.
 		if (interaction.isButton()) {
 			try {
-				if (await handleHubButtonInteraction(interaction)) return;
-				if (await handleWizardInteraction(interaction)) return;
+				await handleHubButtonInteraction(interaction);
 			} catch (error) {
 				await reportComponentError(interaction, error);
 			}
 			return;
 		}
 
-		if (interaction.isChannelSelectMenu() || interaction.isModalSubmit()) {
+		// The /voice create and /voice edit hub-config modal is opened directly as
+		// the command's own response, so its submission is the only interaction
+		// this feature ever generates.
+		if (interaction.isModalSubmit()) {
 			try {
 				await handleWizardInteraction(interaction);
 			} catch (error) {

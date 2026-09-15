@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('disc
 const voiceStore = require('../state/voiceChannels');
 const guildSettings = require('../state/guildSettings');
 const { findDeadHubs, buildDeadHubMessage } = require('../lib/hubDesync');
-const { startSession, getSession, buildWizardMessage } = require('../lib/hubCreateWizard');
+const { buildHubModal } = require('../lib/hubCreateWizard');
 
 function requireManageChannels(interaction) {
 	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -11,19 +11,56 @@ function requireManageChannels(interaction) {
 }
 
 // /voice create used to take name/category as slash-command options and build
-// the hub in one shot. It's now a multi-step wizard (select menus for
-// category/overflow category, then a modal for name + limits — see
-// lib/hubCreateWizard.js) so a hub can be fully configured without a pile of
-// optional params. /voice add (registering an existing channel) was removed
+// the hub in one shot, then briefly became a multi-step button/select-menu
+// wizard. It's now a single modal, opened directly as the command's response
+// (see lib/hubCreateWizard.js) — no intermediate message, no session state,
+// just one form. /voice add (registering an existing channel) was removed
 // entirely rather than given the same treatment: reconciling an arbitrary
 // existing channel's current state against the new config options was judged
-// more complexity than it was worth — every hub now goes through the wizard.
+// more complexity than it was worth — every hub now goes through this modal.
 async function handleCreate(interaction) {
 	requireManageChannels(interaction);
+	await interaction.showModal(buildHubModal({ mode: 'create' }));
+}
 
-	const sessionId = startSession(interaction.guildId);
-	const session = getSession(sessionId);
-	await interaction.reply({ ...buildWizardMessage(interaction.guild, sessionId, session), ephemeral: true });
+// /voice edit opens the exact same modal, pre-filled with the hub's current
+// settings, so changing a hub's config looks and works identically to
+// creating one — just starting from real values instead of blank.
+async function handleEdit(interaction) {
+	requireManageChannels(interaction);
+
+	const hubId = interaction.options.getString('hub');
+	const hub = voiceStore.getHub(hubId);
+	if (!hub) {
+		await interaction.reply({ content: `<#${hubId}> wasn't a voice hub.`, ephemeral: true });
+		return;
+	}
+
+	const channel = interaction.guild.channels.cache.get(hubId);
+	if (!channel) {
+		await interaction.reply({
+			content: `<#${hubId}> is tracked as a hub, but its channel no longer exists on Discord — use \`/voice audit\` to prune or restore it before editing.`,
+			ephemeral: true,
+		});
+		return;
+	}
+
+	const category = hub.categoryId ? interaction.guild.channels.cache.get(hub.categoryId) : null;
+	const overflowCategory = hub.overflowCategoryId ? interaction.guild.channels.cache.get(hub.overflowCategoryId) : null;
+
+	await interaction.showModal(buildHubModal({
+		mode: 'edit',
+		hubChannelId: hubId,
+		current: {
+			hubName: channel.name,
+			nameTemplate: hub.nameTemplate,
+			categoryName: category?.name ?? null,
+			overflowCategoryName: overflowCategory?.name ?? null,
+			minLimit: hub.minLimit,
+			maxLimit: hub.maxLimit,
+			defaultLimit: hub.defaultLimit,
+		},
+	}));
 }
 
 async function handleRemove(interaction) {
@@ -166,6 +203,7 @@ async function handleList(interaction) {
 
 const HANDLERS = {
 	create: handleCreate,
+	edit: handleEdit,
 	remove: handleRemove,
 	list: handleList,
 	audit: handleAudit,
@@ -182,6 +220,14 @@ module.exports = {
 		.addSubcommand((sub) => sub
 			.setName('create')
 			.setDescription('(Manage Channels) Create a new voice hub, configured through a short setup flow.'))
+		.addSubcommand((sub) => sub
+			.setName('edit')
+			.setDescription("(Manage Channels) Edit an existing voice hub's settings.")
+			.addStringOption((option) => option
+				.setName('hub')
+				.setDescription('The hub to edit')
+				.setAutocomplete(true)
+				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('remove')
 			.setDescription('(Manage Channels) Unregister a voice hub.')
