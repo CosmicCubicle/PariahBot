@@ -115,4 +115,26 @@ if (!hasColumn('guild_settings', 'streamer_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN streamer_role_id TEXT');
 }
 
+// Installs that already had role_menus/role_menu_options from before the
+// reaction-roles removal hit CREATE TABLE IF NOT EXISTS as a no-op above, same
+// as every other case on this page. role_menus.type was NOT NULL, so simply
+// leaving it in place would break every future insert (nothing populates it
+// any more) — it has to actually be dropped, not just ignored like a nullable
+// leftover column would be. Dropping role_menu_options' old emoji/label at the
+// same time for the same reason this whole block exists: don't leave schema
+// debris an old install and a fresh one disagree about. Requires SQLite 3.35+
+// for DROP COLUMN (better-sqlite3 12.11.1 bundles 3.53).
+if (hasColumn('role_menus', 'type')) {
+	db.exec('ALTER TABLE role_menus DROP COLUMN type');
+}
+if (hasColumn('role_menu_options', 'emoji')) {
+	db.exec('ALTER TABLE role_menu_options DROP COLUMN emoji');
+}
+if (hasColumn('role_menu_options', 'label')) {
+	db.exec('ALTER TABLE role_menu_options DROP COLUMN label');
+}
+if (!hasColumn('role_menu_options', 'descriptor')) {
+	db.exec('ALTER TABLE role_menu_options ADD COLUMN descriptor TEXT');
+}
+
 module.exports = db;
