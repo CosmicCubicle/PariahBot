@@ -63,14 +63,36 @@ Everything else — alert destinations, voice hubs, role menus, auto-delete sett
 2. Create its bot and copy the token into `DISCORD_TOKEN`.
 3. Copy the application ID into `CLIENT_ID`.
 4. Add the `bot` and `applications.commands` scopes when installing it in a server.
-5. Give it these permissions:
-   - View Channels, Send Messages, Embed Links, Attach Files, Read Message History (baseline).
-   - Manage Channels and Move Members (temporary voice channels).
-   - Manage Roles (role menus and the verification captcha — the bot's own role must also sit **above** any role it hands out).
-   - Manage Messages (auto-deletion).
-   - Ban Members (the `/security` honeypot — needed even for its default "remove", which is a softban).
+5. Grant the permissions below.
 
-The bot requests the Guilds, Guild Voice States (temporary voice channels), and Guild Messages (auto-deletion) gateway intents. None are privileged, so no Developer Portal toggles are required.
+### Required permissions
+
+Every permission the bot actually uses, and what needs it. Omitting one only
+breaks the features listed beside it — the rest keep working.
+
+| Permission | Needed for |
+| --- | --- |
+| View Channels | Everything. |
+| Send Messages | Everything — command replies, role menus, alerts, the verification and honeypot messages. |
+| Embed Links | Embeds, which nearly every command replies with. |
+| Read Message History | `/autodelete` (reading the channel backlog and its pins) and re-finding the `/roles` and `/security` messages it posted earlier. |
+| Manage Channels | Creating and deleting channels and categories — `/voice`, temporary voice channels and their cleanup, `/alerts` default channel, and the channels `/security` creates. Also `/vc name` and `/vc limit`. |
+| Manage Roles | Editing channel permission overwrites (`/vc lock`/`unlock`/`transfer`, `/roles apply-channel-defaults`, the screening and honeypot channels), creating roles via `/setup`, and granting/removing roles for role menus and the captcha. |
+| Move Members | Moving members into their temporary voice channel, and `/vc kick`. |
+| Connect | `/vc lock` and `/vc unlock`. The bot grants itself `Connect` on a channel before denying it to `@everyone`, and Discord only lets it grant a permission it already holds — without this it would lock itself out. |
+| Manage Messages | `/autodelete` deleting other people's messages. |
+| Ban Members | The `/security` honeypot — required even for its default "remove", which is a softban (ban then immediate unban). No Kick Members needed. |
+
+**Role hierarchy matters as much as the permissions.** The bot's own role must
+sit **above** any role it hands out (member role, role-menu roles) and above
+anyone the honeypot might remove. `/security captcha setup` checks this up
+front, but the other features fail at the point of use.
+
+The bot requests the Guilds, Guild Voice States (temporary voice channels), and
+Guild Messages (auto-deletion, honeypot) gateway intents. **None are
+privileged**, so no Developer Portal toggles are required — the verification
+captcha deliberately uses a button in a screening channel rather than listening
+for join events, which would have needed the privileged Guild Members intent.
 
 ## Commands
 
