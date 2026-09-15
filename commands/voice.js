@@ -1,13 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const voiceStore = require('../state/voiceChannels');
 const guildSettings = require('../state/guildSettings');
 const { findDeadHubs, buildDeadHubMessage } = require('../lib/hubDesync');
-
-function requireManageChannels(interaction) {
-	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
-		throw new Error('You need the Manage Channels permission to manage voice hubs.');
-	}
-}
+const { requireAdmin } = require('../lib/permissions');
 
 // Category names aren't unique in Discord, so if more than one existing category
 // shares this name, the first match in the cache wins rather than erroring — good
@@ -36,7 +31,7 @@ async function registerHub(interaction, hub, category) {
 }
 
 async function handleAdd(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const hub = interaction.options.getChannel('hub');
 	const category = await resolveOrCreateCategory(interaction, interaction.options.getString('category'));
@@ -50,7 +45,7 @@ async function handleAdd(interaction) {
 }
 
 async function handleCreate(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const name = interaction.options.getString('name');
 	const category = await resolveOrCreateCategory(interaction, interaction.options.getString('category'));
@@ -70,7 +65,7 @@ async function handleCreate(interaction) {
 }
 
 async function handleRemove(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	// hub is a string (channel ID), not a resolved channel — the autocomplete
 	// handler below only ever suggests real hubs, but Discord doesn't enforce
@@ -110,7 +105,7 @@ async function handleRemove(interaction) {
 }
 
 async function handleAudit(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	// Same detection lib/hubDesync.js's startup sweep uses, rendered as a direct
 	// reply instead of pushed to the configured alert destinations — for checking
@@ -130,13 +125,13 @@ async function handleAudit(interaction) {
 }
 
 async function handleDisableOwnerKick(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 	guildSettings.disableOwnerKick(interaction.guildId);
 	await interaction.reply({ content: 'Channel owners can no longer use `/vc kick`.', ephemeral: true });
 }
 
 async function handleEnableOwnerKick(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 	guildSettings.enableOwnerKick(interaction.guildId);
 	await interaction.reply({ content: 'Channel owners can use `/vc kick` again.', ephemeral: true });
 }
@@ -157,7 +152,7 @@ async function handleHubAutocomplete(interaction) {
 }
 
 async function handleList(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const hubs = voiceStore.listHubs(interaction.guildId);
 
@@ -205,7 +200,7 @@ module.exports = {
 		.setDescription('Create and manage temporary voice channels.')
 		.addSubcommand((sub) => sub
 			.setName('add')
-			.setDescription('(Manage Channels) Register an existing voice channel as a hub.')
+			.setDescription('(Admin) Register an existing voice channel as a hub.')
 			.addChannelOption((option) => option
 				.setName('hub')
 				.setDescription('Voice channel users join to spawn a temp channel')
@@ -218,7 +213,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('create')
-			.setDescription('(Manage Channels) Create a brand-new voice channel and register it as a hub.')
+			.setDescription('(Admin) Create a brand-new voice channel and register it as a hub.')
 			.addStringOption((option) => option
 				.setName('name')
 				.setDescription('Name for the new hub channel (defaults to "➕ Join to Create")')
@@ -231,7 +226,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription('(Manage Channels) Unregister a voice hub.')
+			.setDescription('(Admin) Unregister a voice hub.')
 			.addStringOption((option) => option
 				.setName('hub')
 				.setDescription('The hub to remove')
@@ -239,16 +234,16 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription("(Manage Channels) List this server's configured voice hubs."))
+			.setDescription("(Admin) List this server's configured voice hubs."))
 		.addSubcommand((sub) => sub
 			.setName('audit')
-			.setDescription('(Manage Channels) Check for hubs whose channel no longer exists, with options to prune or restore.'))
+			.setDescription('(Admin) Check for hubs whose channel no longer exists, with options to prune or restore.'))
 		.addSubcommand((sub) => sub
 			.setName('disable-owner-kick')
-			.setDescription("(Manage Channels) Stop channel owners from using /vc kick."))
+			.setDescription("(Admin) Stop channel owners from using /vc kick."))
 		.addSubcommand((sub) => sub
 			.setName('enable-owner-kick')
-			.setDescription('(Manage Channels) Let channel owners use /vc kick again.')),
+			.setDescription('(Admin) Let channel owners use /vc kick again.')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 

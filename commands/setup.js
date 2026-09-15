@@ -1,11 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits, Colors } = require('discord.js');
+const { SlashCommandBuilder, Colors } = require('discord.js');
 const guildSettings = require('../state/guildSettings');
-
-function requireManageChannels(interaction) {
-	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
-		throw new Error('You need the Manage Channels permission to run /setup.');
-	}
-}
+const { requireAdmin } = require('../lib/permissions');
 
 // Accepts a hex code (with or without '#') or a named color from discord.js's own
 // Colors enum (case-insensitive, e.g. "red", "DarkRed", "blurple").
@@ -23,7 +18,7 @@ function resolveRoleColor(raw) {
 // set-existing-role / create-new-role / clear shape, so this is the one handler
 // for all of them — only what to do with the resolved role ID differs, via `config`.
 async function handleRoleSetup(interaction, config) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const role = interaction.options.getRole('role');
 	const name = interaction.options.getString('name');
@@ -112,13 +107,13 @@ module.exports = {
 		.setDescription("Configure this server's roles for PariahBot.")
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('member-role')
-			.setDescription('(Manage Channels) Set, create, or clear the member role.')))
+			.setDescription('(Admin) Set, create, or clear the member role.')))
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('mod-role')
-			.setDescription('(Manage Channels) Set, create, or clear the mod role.')))
+			.setDescription('(Admin) Set, create, or clear the mod role.')))
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('streamer-role')
-			.setDescription('(Manage Channels) Set, create, or clear the streamer role.'))),
+			.setDescription('(Admin) Set, create, or clear the streamer role.'))),
 	async execute(interaction) {
 		const sub = interaction.options.getSubcommand();
 		const config = ROLE_CONFIGS[sub];

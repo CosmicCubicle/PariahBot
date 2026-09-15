@@ -1,13 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const roleMenuStore = require('../state/roleMenus');
 const { applyChannelDefaults } = require('../lib/roleAssignmentChannel');
 const { buildDropdownAnchorEmbed, refreshMenuEmbed, buildOpenButtonRow } = require('../lib/roleMenus');
-
-function requireManageChannels(interaction) {
-	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
-		throw new Error('You need the Manage Channels permission to manage role menus.');
-	}
-}
+const { requireAdmin } = require('../lib/permissions');
 
 // Shared by add-role/remove-role: resolves the `message` option (populated by
 // autocomplete, but not guaranteed to have come from it — see the same caveat
@@ -53,7 +48,7 @@ function addRoleToMenu(interaction, menu, role, descriptor) {
 }
 
 async function handleDropdownCreate(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const channel = interaction.options.getChannel('channel');
 	const existingMessageId = interaction.options.getString('message_id');
@@ -110,7 +105,7 @@ async function handleDropdownCreate(interaction) {
 }
 
 async function handleDropdownAddRole(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const menu = requireMenu(interaction);
 	const role = interaction.options.getRole('role');
@@ -127,7 +122,7 @@ async function handleDropdownAddRole(interaction) {
 }
 
 async function handleDropdownRemoveRole(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const menu = requireMenu(interaction);
 	const role = interaction.options.getRole('role');
@@ -149,7 +144,7 @@ async function handleDropdownRemoveRole(interaction) {
 }
 
 async function handleList(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const menus = roleMenuStore.listMenusForGuild(interaction.guildId);
 	const embed = new EmbedBuilder().setTitle('Role menus').setColor(0x5865f2);
@@ -171,7 +166,7 @@ async function handleList(interaction) {
 }
 
 async function handleApplyChannelDefaults(interaction) {
-	requireManageChannels(interaction);
+	requireAdmin(interaction);
 
 	const channel = interaction.options.getChannel('channel');
 	const targetRoleId = await applyChannelDefaults(channel, interaction.guildId);
@@ -216,7 +211,7 @@ function messageOption(option, description) {
 
 function buildCreateSubcommand(sub) {
 	sub.setName('create');
-	sub.setDescription('(Manage Channels) Post a new dropdown role message, or attach one to an existing message.');
+	sub.setDescription('(Admin) Post a new dropdown role message, or attach one to an existing message.');
 	sub.addChannelOption((option) => option
 		.setName('channel')
 		.setDescription('Channel to post in (or that contains the existing message)')
@@ -254,7 +249,7 @@ function buildCreateSubcommand(sub) {
 
 function buildAddRoleSubcommand(sub) {
 	sub.setName('add-role');
-	sub.setDescription('(Manage Channels) Add a role to a dropdown role message.');
+	sub.setDescription('(Admin) Add a role to a dropdown role message.');
 	sub.addStringOption((option) => messageOption(option, 'The dropdown role message'));
 	sub.addRoleOption((option) => option
 		.setName('role')
@@ -270,7 +265,7 @@ function buildAddRoleSubcommand(sub) {
 
 function buildRemoveRoleSubcommand(sub) {
 	sub.setName('remove-role');
-	sub.setDescription('(Manage Channels) Remove a role from a dropdown role message.');
+	sub.setDescription('(Admin) Remove a role from a dropdown role message.');
 	sub.addStringOption((option) => messageOption(option, 'The dropdown role message'));
 	sub.addRoleOption((option) => option
 		.setName('role')
@@ -291,10 +286,10 @@ module.exports = {
 			.addSubcommand(buildRemoveRoleSubcommand))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription("(Manage Channels) List this server's configured role menus."))
+			.setDescription("(Admin) List this server's configured role menus."))
 		.addSubcommand((sub) => sub
 			.setName('apply-channel-defaults')
-			.setDescription('(Manage Channels) Lock a channel to admin/bot posting and member-only visibility.')
+			.setDescription('(Admin) Lock a channel to admin/bot posting and member-only visibility.')
 			.addChannelOption((option) => option
 				.setName('channel')
 				.setDescription('Channel to apply defaults to')
