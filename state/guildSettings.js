@@ -56,7 +56,6 @@ function getGuildSettings(guildId) {
 		defaultCategoryId: row?.default_category_id ?? null,
 		defaultChannelId: row?.default_channel_id ?? null,
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
-		modRoleId: row?.mod_role_id ?? null,
 		ownerKickDisabled: !!row?.owner_kick_disabled,
 		memberRoleId: row?.member_role_id ?? null,
 		streamerRoleId: row?.streamer_role_id ?? null,
@@ -94,27 +93,26 @@ function clearDefaultAlertInfra(guildId) {
 	clearDefaultAlertInfraStmt.run({ guildId });
 }
 
-// mod_role_id shipped with this table back in Stage 1 checkpoint 1 but had no
-// reader/writer until Stage 2 needed a way to distinguish "mod" from "regular
-// owner" for /vc claim's override rules — see lib/permissions.js.
-const upsertModRoleStmt = db.prepare(`
-	INSERT INTO guild_settings (guild_id, mod_role_id)
-	VALUES (@guildId, @roleId)
-	ON CONFLICT(guild_id) DO UPDATE SET mod_role_id = excluded.mod_role_id
-`);
+// Any number of roles can count as "mod" — see lib/permissions.js's isMod/isAdmin,
+// used for /vc claim's override rules and gating the bot's admin commands.
+// Superseded the single guild_settings.mod_role_id column; see state/db.js for
+// the one-time migration of any guild that already had one set.
+const insertModRoleStmt = db.prepare('INSERT OR IGNORE INTO guild_mod_roles (guild_id, role_id) VALUES (?, ?)');
 
-function setModRole(guildId, roleId) {
-	upsertModRoleStmt.run({ guildId, roleId });
+function addModRole(guildId, roleId) {
+	insertModRoleStmt.run(guildId, roleId);
 }
 
-function clearModRole(guildId) {
-	upsertModRoleStmt.run({ guildId, roleId: null });
+const deleteModRoleStmt = db.prepare('DELETE FROM guild_mod_roles WHERE guild_id = ? AND role_id = ?');
+
+function removeModRole(guildId, roleId) {
+	return deleteModRoleStmt.run(guildId, roleId).changes > 0;
 }
 
-const selectModRoleStmt = db.prepare('SELECT mod_role_id FROM guild_settings WHERE guild_id = ?');
+const selectModRolesStmt = db.prepare('SELECT role_id FROM guild_mod_roles WHERE guild_id = ? ORDER BY role_id');
 
-function getModRole(guildId) {
-	return selectModRoleStmt.get(guildId)?.mod_role_id ?? null;
+function listModRoles(guildId) {
+	return selectModRolesStmt.all(guildId).map((row) => row.role_id);
 }
 
 const setOwnerKickDisabledStmt = db.prepare(`
@@ -178,9 +176,9 @@ module.exports = {
 	getGuildSettings,
 	setDefaultAlertInfra,
 	clearDefaultAlertInfra,
-	setModRole,
-	clearModRole,
-	getModRole,
+	addModRole,
+	removeModRole,
+	listModRoles,
 	disableOwnerKick,
 	enableOwnerKick,
 	isOwnerKickDisabled,

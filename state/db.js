@@ -32,6 +32,14 @@ db.exec(`
 		PRIMARY KEY (guild_id, user_id)
 	);
 
+	-- Superseded guild_settings.mod_role_id (a single role) — mod status is now
+	-- membership in any of these. See the migration below for existing installs.
+	CREATE TABLE IF NOT EXISTS guild_mod_roles (
+		guild_id TEXT NOT NULL,
+		role_id  TEXT NOT NULL,
+		PRIMARY KEY (guild_id, role_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS hubs (
 		channel_id    TEXT PRIMARY KEY,
 		guild_id      TEXT NOT NULL,
@@ -139,5 +147,22 @@ if (hasColumn('role_menu_options', 'label')) {
 if (!hasColumn('role_menu_options', 'descriptor')) {
 	db.exec('ALTER TABLE role_menu_options ADD COLUMN descriptor TEXT');
 }
+
+// mod_role_id (a single role) is superseded by guild_mod_roles (any number of
+// roles) — copy over any guild that already had one set, then null the column
+// out. That second step is what makes this a genuinely one-time migration
+// rather than something that reruns every startup: without it, a guild that
+// used /setup mod-role remove to deliberately drop that original role would
+// have it silently reinserted the next time the bot restarts, since this
+// block has no other memory of "already migrated" to check against.
+// mod_role_id is left in the schema unused rather than dropped: it's nullable,
+// so unlike role_menus.type earlier there's no constraint it could violate by
+// staying, and INSERT OR IGNORE + this UPDATE are both safe to re-run.
+db.exec(`
+	INSERT OR IGNORE INTO guild_mod_roles (guild_id, role_id)
+	SELECT guild_id, mod_role_id FROM guild_settings WHERE mod_role_id IS NOT NULL;
+
+	UPDATE guild_settings SET mod_role_id = NULL WHERE mod_role_id IS NOT NULL;
+`);
 
 module.exports = db;
