@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const commandLogger = require('../logging/commandLogger');
 const { handleHubButtonInteraction } = require('../lib/hubDesync');
 const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
+const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require('../lib/captcha');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -23,7 +24,8 @@ module.exports = {
 			// clicker either way.
 			try {
 				const handled = await handleHubButtonInteraction(interaction)
-					|| await handleRoleMenuButtonInteraction(interaction);
+					|| await handleRoleMenuButtonInteraction(interaction)
+					|| await handleVerifyStartInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
@@ -33,7 +35,8 @@ module.exports = {
 
 		if (interaction.isStringSelectMenu()) {
 			try {
-				const handled = await handleRoleMenuSelectInteraction(interaction);
+				const handled = await handleRoleMenuSelectInteraction(interaction)
+					|| await handleVerifyAnswerInteraction(interaction);
 				if (!handled) return; // some other feature's select menu, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
