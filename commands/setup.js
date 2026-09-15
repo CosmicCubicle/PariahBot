@@ -58,10 +58,7 @@ async function handleRoleSetup(interaction, config) {
 	const targetRole = await resolveOrCreateRole(interaction, { role, name, color });
 
 	config.set(interaction.guildId, targetRole.id);
-	await interaction.reply({
-		content: `${targetRole} is now the ${config.label}.${config.note ? ` ${config.note}` : ''}`,
-		ephemeral: true,
-	});
+	await interaction.reply({ content: `${targetRole} is now the ${config.label}.`, ephemeral: true });
 }
 
 const ROLE_CONFIGS = {
@@ -69,7 +66,6 @@ const ROLE_CONFIGS = {
 		label: 'member role',
 		set: guildSettings.setMemberRole,
 		clear: guildSettings.clearMemberRole,
-		note: 'Used by `/roles apply-channel-defaults` to decide who can view a role-selection channel.',
 	},
 	'streamer-role': {
 		label: 'streamer role',
@@ -120,7 +116,7 @@ async function handleModRoleAdd(interaction) {
 
 	guildSettings.addModRole(interaction.guildId, targetRole.id);
 	await interaction.reply({
-		content: `${targetRole} is now a mod role — can override temp channel ownership via \`/vc claim\` and use PariahBot's admin commands.`,
+		content: `${targetRole} is now a mod role.`,
 		ephemeral: true,
 	});
 }
