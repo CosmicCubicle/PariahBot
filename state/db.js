@@ -65,11 +65,13 @@ db.exec(`
 	-- role_id is the primary uniqueness key (a role can only appear once per menu);
 	-- emoji uniqueness for the 'reaction' type is enforced separately below, since a
 	-- partial index can't be expressed inline in a CREATE TABLE column constraint.
+	-- emoji is only ever set for 'reaction' options; descriptor (optional secondary
+	-- text under the role's own name) is only ever set for 'dropdown' options.
 	CREATE TABLE IF NOT EXISTS role_menu_options (
 		message_id TEXT NOT NULL,
 		role_id    TEXT NOT NULL,
 		emoji      TEXT,
-		label      TEXT,
+		descriptor TEXT,
 		PRIMARY KEY (message_id, role_id)
 	);
 

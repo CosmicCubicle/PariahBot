@@ -16,7 +16,7 @@ function mapOption(row) {
 		messageId: row.message_id,
 		roleId: row.role_id,
 		emoji: row.emoji,
-		label: row.label,
+		descriptor: row.descriptor,
 	};
 }
 
@@ -56,15 +56,15 @@ function listMenusForGuild(guildId) {
 }
 
 const upsertOptionStmt = db.prepare(`
-	INSERT INTO role_menu_options (message_id, role_id, emoji, label)
-	VALUES (@messageId, @roleId, @emoji, @label)
+	INSERT INTO role_menu_options (message_id, role_id, emoji, descriptor)
+	VALUES (@messageId, @roleId, @emoji, @descriptor)
 	ON CONFLICT(message_id, role_id) DO UPDATE SET
 		emoji = excluded.emoji,
-		label = excluded.label
+		descriptor = excluded.descriptor
 `);
 
-function addOption({ messageId, roleId, emoji, label }) {
-	upsertOptionStmt.run({ messageId, roleId, emoji: emoji ?? null, label: label ?? null });
+function addOption({ messageId, roleId, emoji, descriptor }) {
+	upsertOptionStmt.run({ messageId, roleId, emoji: emoji ?? null, descriptor: descriptor ?? null });
 }
 
 const deleteOptionStmt = db.prepare('DELETE FROM role_menu_options WHERE message_id = ? AND role_id = ?');
