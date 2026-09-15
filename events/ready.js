@@ -2,6 +2,8 @@ const { Events } = require('discord.js');
 const { ensureDefaultAlertInfra } = require('../lib/defaultAlertInfra');
 const { reconcileTempChannels } = require('../lib/tempChannelCleanup');
 const { checkAndNotifyDeadHubs } = require('../lib/hubDesync');
+const autoDeleteStore = require('../state/autoDeleteChannels');
+const autoDelete = require('../lib/autoDelete');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -23,5 +25,11 @@ module.exports = {
 				console.error(`Failed to check for desynced hubs in guild ${guild.id}:`, error.message);
 			}
 		}
+
+		// Not per-guild like the loop above — one pass over every configured
+		// channel across every guild, seeding tracking (and reaping anything
+		// that expired while the bot was offline) before the sweep timer starts.
+		await autoDelete.seedAll(client, autoDeleteStore.listAllChannels());
+		autoDelete.startSweepTimer();
 	},
 };

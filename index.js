@@ -3,7 +3,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+// GuildMessages is non-privileged and needed for /autodelete: receiving
+// messageCreate events and fetching channel history to seed tracking.
+const client = new Client({
+	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages],
+});
 
 client.commands = new Collection();
 
