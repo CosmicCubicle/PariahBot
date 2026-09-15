@@ -56,6 +56,7 @@ function getGuildSettings(guildId) {
 		defaultCategoryId: row?.default_category_id ?? null,
 		defaultChannelId: row?.default_channel_id ?? null,
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
+		modRoleId: row?.mod_role_id ?? null,
 	};
 }
 
@@ -90,6 +91,29 @@ function clearDefaultAlertInfra(guildId) {
 	clearDefaultAlertInfraStmt.run({ guildId });
 }
 
+// mod_role_id shipped with this table back in Stage 1 checkpoint 1 but had no
+// reader/writer until Stage 2 needed a way to distinguish "mod" from "regular
+// owner" for /vc claim's override rules — see lib/permissions.js.
+const upsertModRoleStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, mod_role_id)
+	VALUES (@guildId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET mod_role_id = excluded.mod_role_id
+`);
+
+function setModRole(guildId, roleId) {
+	upsertModRoleStmt.run({ guildId, roleId });
+}
+
+function clearModRole(guildId) {
+	upsertModRoleStmt.run({ guildId, roleId: null });
+}
+
+const selectModRoleStmt = db.prepare('SELECT mod_role_id FROM guild_settings WHERE guild_id = ?');
+
+function getModRole(guildId) {
+	return selectModRoleStmt.get(guildId)?.mod_role_id ?? null;
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -99,4 +123,7 @@ module.exports = {
 	getGuildSettings,
 	setDefaultAlertInfra,
 	clearDefaultAlertInfra,
+	setModRole,
+	clearModRole,
+	getModRole,
 };
