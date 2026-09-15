@@ -32,6 +32,14 @@ db.exec(`
 		PRIMARY KEY (guild_id, user_id)
 	);
 
+	-- Superseded guild_settings.mod_role_id (a single role) — mod status is now
+	-- membership in any of these. See the migration below for existing installs.
+	CREATE TABLE IF NOT EXISTS guild_mod_roles (
+		guild_id TEXT NOT NULL,
+		role_id  TEXT NOT NULL,
+		PRIMARY KEY (guild_id, role_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS hubs (
 		channel_id    TEXT PRIMARY KEY,
 		guild_id      TEXT NOT NULL,
@@ -53,6 +61,32 @@ db.exec(`
 		created_at     TEXT NOT NULL,
 		min_limit      INTEGER NOT NULL,
 		max_limit      INTEGER NOT NULL
+	);
+
+	-- Dropdown role-selection menus only — reaction roles were removed.
+	CREATE TABLE IF NOT EXISTS role_menus (
+		message_id TEXT PRIMARY KEY,
+		guild_id   TEXT NOT NULL,
+		channel_id TEXT NOT NULL
+	);
+
+	-- role_id is the primary uniqueness key — a role can only appear once per menu.
+	-- descriptor is optional secondary text shown under the role's own name.
+	CREATE TABLE IF NOT EXISTS role_menu_options (
+		message_id TEXT NOT NULL,
+		role_id    TEXT NOT NULL,
+		descriptor TEXT,
+		PRIMARY KEY (message_id, role_id)
+	);
+
+	-- max_messages/live_seconds: 0 means "not used" — at least one must be
+	-- nonzero for a row to exist at all (enforced by the command layer, not
+	-- here). The live message list itself isn't stored: see lib/autoDelete.js.
+	CREATE TABLE IF NOT EXISTS autodelete_channels (
+		channel_id   TEXT PRIMARY KEY,
+		guild_id     TEXT NOT NULL,
+		max_messages INTEGER NOT NULL DEFAULT 0,
+		live_seconds INTEGER NOT NULL DEFAULT 0
 	);
 `);
 
@@ -87,5 +121,58 @@ if (!hasColumn('guild_settings', 'default_alerts_disabled')) {
 if (!hasColumn('guild_settings', 'owner_kick_disabled')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN owner_kick_disabled INTEGER NOT NULL DEFAULT 0');
 }
+
+// Set via /setup member-role. /roles apply-channel-defaults falls back to
+// @everyone until this is set.
+if (!hasColumn('guild_settings', 'member_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN member_role_id TEXT');
+}
+
+// Set via /setup streamer-role. No consumer yet — stored for future use.
+if (!hasColumn('guild_settings', 'streamer_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN streamer_role_id TEXT');
+}
+
+// Installs that already had role_menus/role_menu_options from before the
+// reaction-roles removal hit CREATE TABLE IF NOT EXISTS as a no-op above, same
+// as every other case on this page. role_menus.type was NOT NULL, so simply
+// leaving it in place would break every future insert (nothing populates it
+// any more) — it has to actually be dropped, not just ignored like a nullable
+// leftover column would be. Dropping role_menu_options' old emoji/label at the
+// same time for the same reason this whole block exists: don't leave schema
+// debris an old install and a fresh one disagree about. Requires SQLite 3.35+
+// for DROP COLUMN (better-sqlite3 12.11.1 bundles 3.53).
+if (hasColumn('role_menus', 'type')) {
+	db.exec('ALTER TABLE role_menus DROP COLUMN type');
+}
+if (hasColumn('role_menu_options', 'emoji')) {
+	// The old reaction-roles unique index on (message_id, emoji) has to go first —
+	// SQLite refuses to drop a column an index still references.
+	db.exec('DROP INDEX IF EXISTS idx_role_menu_options_emoji');
+	db.exec('ALTER TABLE role_menu_options DROP COLUMN emoji');
+}
+if (hasColumn('role_menu_options', 'label')) {
+	db.exec('ALTER TABLE role_menu_options DROP COLUMN label');
+}
+if (!hasColumn('role_menu_options', 'descriptor')) {
+	db.exec('ALTER TABLE role_menu_options ADD COLUMN descriptor TEXT');
+}
+
+// mod_role_id (a single role) is superseded by guild_mod_roles (any number of
+// roles) — copy over any guild that already had one set, then null the column
+// out. That second step is what makes this a genuinely one-time migration
+// rather than something that reruns every startup: without it, a guild that
+// used /setup mod-role remove to deliberately drop that original role would
+// have it silently reinserted the next time the bot restarts, since this
+// block has no other memory of "already migrated" to check against.
+// mod_role_id is left in the schema unused rather than dropped: it's nullable,
+// so unlike role_menus.type earlier there's no constraint it could violate by
+// staying, and INSERT OR IGNORE + this UPDATE are both safe to re-run.
+db.exec(`
+	INSERT OR IGNORE INTO guild_mod_roles (guild_id, role_id)
+	SELECT guild_id, mod_role_id FROM guild_settings WHERE mod_role_id IS NOT NULL;
+
+	UPDATE guild_settings SET mod_role_id = NULL WHERE mod_role_id IS NOT NULL;
+`);
 
 module.exports = db;

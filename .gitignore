@@ -4,3 +4,4 @@ hom.env
 npm-debug.log*
 data/
 logs/
+sync.log

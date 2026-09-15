@@ -1,26 +1,42 @@
 const { Events } = require('discord.js');
 const commandLogger = require('../logging/commandLogger');
 const { handleHubButtonInteraction } = require('../lib/hubDesync');
+const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
+
+async function replyWithError(interaction, error) {
+	console.error('Component interaction failed:', error);
+	const errorReply = { content: `Something went wrong: ${error.message}`, ephemeral: true };
+	if (interaction.replied || interaction.deferred) {
+		await interaction.followUp(errorReply).catch(() => null);
+	} else {
+		await interaction.reply(errorReply).catch(() => null);
+	}
+}
 
 module.exports = {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
 		if (interaction.isButton()) {
 			// Not run through the audit logger like slash commands — these are
-			// Prune/Restore clicks on a hub-desync notice, not a /command invocation,
-			// and handleHubButtonInteraction reports its own outcome directly to the
+			// clicks on a hub-desync notice or a role-menu message, not a /command
+			// invocation, and each handler reports its own outcome directly to the
 			// clicker either way.
 			try {
-				const handled = await handleHubButtonInteraction(interaction);
+				const handled = await handleHubButtonInteraction(interaction)
+					|| await handleRoleMenuButtonInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
-				console.error('Button interaction failed:', error);
-				const errorReply = { content: `Something went wrong: ${error.message}`, ephemeral: true };
-				if (interaction.replied || interaction.deferred) {
-					await interaction.followUp(errorReply).catch(() => null);
-				} else {
-					await interaction.reply(errorReply).catch(() => null);
-				}
+				await replyWithError(interaction, error);
+			}
+			return;
+		}
+
+		if (interaction.isStringSelectMenu()) {
+			try {
+				const handled = await handleRoleMenuSelectInteraction(interaction);
+				if (!handled) return; // some other feature's select menu, not ours
+			} catch (error) {
+				await replyWithError(interaction, error);
 			}
 			return;
 		}
