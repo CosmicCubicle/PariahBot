@@ -149,10 +149,21 @@ async function handleModRoleList(interaction) {
 	});
 }
 
+async function handleModRoleClear(interaction) {
+	requireAdmin(interaction);
+
+	const count = guildSettings.clearModRoles(interaction.guildId);
+	await interaction.reply({
+		content: count > 0 ? `Cleared all ${count} mod role${count === 1 ? '' : 's'}.` : 'No mod roles were configured.',
+		ephemeral: true,
+	});
+}
+
 const MOD_ROLE_HANDLERS = {
 	add: handleModRoleAdd,
 	remove: handleModRoleRemove,
 	list: handleModRoleList,
+	clear: handleModRoleClear,
 };
 
 module.exports = {
@@ -190,7 +201,10 @@ module.exports = {
 					.setRequired(true)))
 			.addSubcommand((sub) => sub
 				.setName('list')
-				.setDescription('(Admin) List the configured mod roles.')))
+				.setDescription('(Admin) List the configured mod roles.'))
+			.addSubcommand((sub) => sub
+				.setName('clear')
+				.setDescription('(Admin) Remove all configured mod roles.')))
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('streamer-role')
 			.setDescription('(Admin) Set, create, or clear the streamer role.'))),

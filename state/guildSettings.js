@@ -109,6 +109,12 @@ function removeModRole(guildId, roleId) {
 	return deleteModRoleStmt.run(guildId, roleId).changes > 0;
 }
 
+const deleteAllModRolesStmt = db.prepare('DELETE FROM guild_mod_roles WHERE guild_id = ?');
+
+function clearModRoles(guildId) {
+	return deleteAllModRolesStmt.run(guildId).changes;
+}
+
 const selectModRolesStmt = db.prepare('SELECT role_id FROM guild_mod_roles WHERE guild_id = ? ORDER BY role_id');
 
 function listModRoles(guildId) {
@@ -178,6 +184,7 @@ module.exports = {
 	clearDefaultAlertInfra,
 	addModRole,
 	removeModRole,
+	clearModRoles,
 	listModRoles,
 	disableOwnerKick,
 	enableOwnerKick,
