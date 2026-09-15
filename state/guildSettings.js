@@ -136,6 +136,23 @@ function isOwnerKickDisabled(guildId) {
 	return !!selectOwnerKickDisabledStmt.get(guildId)?.owner_kick_disabled;
 }
 
+// The role that identifies a regular member — used by /roles apply-channel-defaults
+// to decide who can view a role-selection channel. Falls back to @everyone (see
+// lib/roleAssignmentChannel.js) until this is set via /member role set.
+const upsertMemberRoleStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, member_role_id)
+	VALUES (@guildId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET member_role_id = excluded.member_role_id
+`);
+
+function setMemberRole(guildId, roleId) {
+	upsertMemberRoleStmt.run({ guildId, roleId });
+}
+
+function clearMemberRole(guildId) {
+	upsertMemberRoleStmt.run({ guildId, roleId: null });
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -151,4 +168,6 @@ module.exports = {
 	disableOwnerKick,
 	enableOwnerKick,
 	isOwnerKickDisabled,
+	setMemberRole,
+	clearMemberRole,
 };
