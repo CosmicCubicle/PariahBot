@@ -37,10 +37,20 @@ async function createTempChannel(member, hub, hubChannel) {
 				// needs them (kick uses disconnect, ban uses a Connect-deny overwrite),
 				// and moderation heavier than that should involve a mod, not be pure
 				// owner self-service (see pariahbot-temp-voice-channels memory).
+				//
+				// Connect is included explicitly for a non-obvious reason: the owner is
+				// moved into this channel by the bot (via MoveMembers), never exercising
+				// their own Connect, so without an explicit grant they only ever had
+				// @everyone's. /vc lock denies @everyone's Connect, and Discord gates
+				// using a slash command inside a voice channel's own chat on currently
+				// holding Connect there — so without this, locking a channel would strip
+				// the owner's ability to run any further /vc command in it, including
+				// /vc unlock itself. See lib/vcScope.js's same-channel-chat requirement.
 				id: member.id,
 				allow: [
 					PermissionFlagsBits.ManageChannels,
 					PermissionFlagsBits.MoveMembers,
+					PermissionFlagsBits.Connect,
 				],
 			},
 		],
