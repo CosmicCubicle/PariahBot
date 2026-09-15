@@ -9,7 +9,7 @@ function requireManageChannels(interaction) {
 	}
 }
 
-// Shared by add-roles/remove-role: resolves the `message` option (populated by
+// Shared by add-role/remove-role: resolves the `message` option (populated by
 // autocomplete, but not guaranteed to have come from it — see the same caveat
 // in commands/voice.js's handleRemove) to a menu in this guild.
 function requireMenu(interaction) {
@@ -35,52 +35,21 @@ async function fetchMenuMessage(interaction, menu) {
 	return channel.messages.fetch(menu.messageId).catch(() => null);
 }
 
-const DROPDOWN_ROLE_SLOTS = 5;
-
-// Discord slash commands can't take a variable-length list, so a dropdown's
-// roles are added via a fixed number of optional role_N/descriptor_N pairs —
-// only role_1 is required. Shared by both `dropdown create` (seeding roles at
-// creation) and `dropdown add-roles` (adding more later).
-function collectRoleSlots(interaction) {
-	const slots = [];
-	for (let i = 1; i <= DROPDOWN_ROLE_SLOTS; i += 1) {
-		const role = interaction.options.getRole(`role_${i}`);
-		if (!role) continue;
-		slots.push({ role, descriptor: interaction.options.getString(`descriptor_${i}`) });
+// Shared by `dropdown create` (seeding the first role) and `dropdown add-role`
+// (adding one more later) — one role per command call.
+function addRoleToMenu(interaction, menu, role, descriptor) {
+	if (roleMenuStore.getOptionByRole(menu.messageId, role.id)) {
+		throw new Error(`${role} is already on this message.`);
 	}
-	return slots;
-}
-
-// Validates every slot up front (no duplicates within the batch, none already on
-// the menu, all under the bot's own top role, total under Discord's 25-option
-// cap) before writing anything, so a bad slot never leaves a partial batch applied.
-function addRoleSlotsToMenu(interaction, menu, slots) {
-	if (slots.length === 0) return;
 
 	const existingOptions = roleMenuStore.getOptions(menu.messageId);
-	const existingRoleIds = new Set(existingOptions.map((option) => option.roleId));
-	const seen = new Set();
-
-	for (const { role } of slots) {
-		if (seen.has(role.id)) {
-			throw new Error(`${role} was selected more than once.`);
-		}
-		seen.add(role.id);
-
-		if (existingRoleIds.has(role.id)) {
-			throw new Error(`${role} is already on this message.`);
-		}
-
-		requireRoleBelowBot(interaction, role);
+	if (existingOptions.length >= 25) {
+		throw new Error('This message already has the maximum of 25 roles a dropdown can hold.');
 	}
 
-	if (existingOptions.length + slots.length > 25) {
-		throw new Error(`Adding ${slots.length} role(s) would exceed the maximum of 25 roles a dropdown can hold (currently ${existingOptions.length}).`);
-	}
+	requireRoleBelowBot(interaction, role);
 
-	for (const { role, descriptor } of slots) {
-		roleMenuStore.addOption({ messageId: menu.messageId, roleId: role.id, descriptor: descriptor ?? null });
-	}
+	roleMenuStore.addOption({ messageId: menu.messageId, roleId: role.id, descriptor: descriptor ?? null });
 }
 
 async function handleDropdownCreate(interaction) {
@@ -91,7 +60,8 @@ async function handleDropdownCreate(interaction) {
 	const title = interaction.options.getString('title');
 	const description = interaction.options.getString('description');
 	const applyDefaults = interaction.options.getBoolean('apply_channel_defaults') ?? false;
-	const slots = collectRoleSlots(interaction);
+	const role = interaction.options.getRole('role');
+	const descriptor = interaction.options.getString('descriptor');
 
 	let message;
 	let menu;
@@ -116,7 +86,7 @@ async function handleDropdownCreate(interaction) {
 		roleMenuStore.createMenu(menu);
 	}
 
-	addRoleSlotsToMenu(interaction, menu, slots);
+	addRoleToMenu(interaction, menu, role, descriptor);
 
 	const existingEmbed = message.embeds[0];
 	const finalTitle = title ?? existingEmbed?.title ?? 'Pick your roles';
@@ -139,26 +109,21 @@ async function handleDropdownCreate(interaction) {
 	});
 }
 
-async function handleDropdownAddRoles(interaction) {
+async function handleDropdownAddRole(interaction) {
 	requireManageChannels(interaction);
 
 	const menu = requireMenu(interaction);
-	const slots = collectRoleSlots(interaction);
-	if (slots.length === 0) {
-		throw new Error('Pick at least one role to add.');
-	}
+	const role = interaction.options.getRole('role');
+	const descriptor = interaction.options.getString('descriptor');
 
-	addRoleSlotsToMenu(interaction, menu, slots);
+	addRoleToMenu(interaction, menu, role, descriptor);
 
 	const message = await fetchMenuMessage(interaction, menu);
 	if (message) {
 		await refreshMenuEmbed(message, roleMenuStore.getOptions(menu.messageId), buildDropdownAnchorEmbed);
 	}
 
-	await interaction.reply({
-		content: `Added ${slots.length} role${slots.length === 1 ? '' : 's'} to that dropdown.`,
-		ephemeral: true,
-	});
+	await interaction.reply({ content: `Added ${role} to that dropdown.`, ephemeral: true });
 }
 
 async function handleDropdownRemoveRole(interaction) {
@@ -235,7 +200,7 @@ async function handleMessageAutocomplete(interaction) {
 
 const HANDLERS = {
 	'dropdown.create': handleDropdownCreate,
-	'dropdown.add-roles': handleDropdownAddRoles,
+	'dropdown.add-role': handleDropdownAddRole,
 	'dropdown.remove-role': handleDropdownRemoveRole,
 	list: handleList,
 	'apply-channel-defaults': handleApplyChannelDefaults,
@@ -249,30 +214,68 @@ function messageOption(option, description) {
 		.setRequired(true);
 }
 
-// role_1 is required so a dropdown always has at least one role by the time it's
-// usable; role_1 must be added before any optional option (Discord requires every
-// required option to precede every optional one), so it's added first here.
-function addDropdownRoleSlotOptions(sub) {
+function buildCreateSubcommand(sub) {
+	sub.setName('create');
+	sub.setDescription('(Manage Channels) Post a new dropdown role message, or attach one to an existing message.');
+	sub.addChannelOption((option) => option
+		.setName('channel')
+		.setDescription('Channel to post in (or that contains the existing message)')
+		.addChannelTypes(ChannelType.GuildText)
+		.setRequired(true));
 	sub.addRoleOption((option) => option
-		.setName('role_1')
+		.setName('role')
 		.setDescription('Role to offer')
 		.setRequired(true));
+	sub.addStringOption((option) => option
+		.setName('message_id')
+		.setDescription('Attach to this existing message (that I posted) instead of creating a new one')
+		.setRequired(false));
+	sub.addStringOption((option) => option
+		.setName('title')
+		.setDescription('Embed title (defaults to "Pick your roles" for a new message)')
+		.setMaxLength(256)
+		.setRequired(false));
+	sub.addStringOption((option) => option
+		.setName('description')
+		.setDescription('Embed description')
+		.setMaxLength(2000)
+		.setRequired(false));
+	sub.addBooleanOption((option) => option
+		.setName('apply_channel_defaults')
+		.setDescription('Lock the channel to admin/bot posting and member-only visibility')
+		.setRequired(false));
+	sub.addStringOption((option) => option
+		.setName('descriptor')
+		.setDescription("Optional secondary text shown under the role's name")
+		.setMaxLength(100)
+		.setRequired(false));
+	return sub;
+}
 
-	for (let i = 2; i <= DROPDOWN_ROLE_SLOTS; i += 1) {
-		sub.addRoleOption((option) => option
-			.setName(`role_${i}`)
-			.setDescription(`Additional role to offer (slot ${i})`)
-			.setRequired(false));
-	}
+function buildAddRoleSubcommand(sub) {
+	sub.setName('add-role');
+	sub.setDescription('(Manage Channels) Add a role to a dropdown role message.');
+	sub.addStringOption((option) => messageOption(option, 'The dropdown role message'));
+	sub.addRoleOption((option) => option
+		.setName('role')
+		.setDescription('Role to offer')
+		.setRequired(true));
+	sub.addStringOption((option) => option
+		.setName('descriptor')
+		.setDescription("Optional secondary text shown under the role's name")
+		.setMaxLength(100)
+		.setRequired(false));
+	return sub;
+}
 
-	for (let i = 1; i <= DROPDOWN_ROLE_SLOTS; i += 1) {
-		sub.addStringOption((option) => option
-			.setName(`descriptor_${i}`)
-			.setDescription(`Optional secondary text shown under role_${i}'s name`)
-			.setMaxLength(100)
-			.setRequired(false));
-	}
-
+function buildRemoveRoleSubcommand(sub) {
+	sub.setName('remove-role');
+	sub.setDescription('(Manage Channels) Remove a role from a dropdown role message.');
+	sub.addStringOption((option) => messageOption(option, 'The dropdown role message'));
+	sub.addRoleOption((option) => option
+		.setName('role')
+		.setDescription('Role to remove')
+		.setRequired(true));
 	return sub;
 }
 
@@ -283,44 +286,9 @@ module.exports = {
 		.addSubcommandGroup((group) => group
 			.setName('dropdown')
 			.setDescription('Role menus where a dropdown lets members pick their roles.')
-			.addSubcommand((sub) => addDropdownRoleSlotOptions(sub
-				.setName('create')
-				.setDescription('(Manage Channels) Post a new dropdown role message, or attach one to an existing message.')
-				.addChannelOption((option) => option
-					.setName('channel')
-					.setDescription('Channel to post in (or that contains the existing message)')
-					.addChannelTypes(ChannelType.GuildText)
-					.setRequired(true)))
-				.addStringOption((option) => option
-					.setName('message_id')
-					.setDescription('Attach to this existing message (that I posted) instead of creating a new one')
-					.setRequired(false))
-				.addStringOption((option) => option
-					.setName('title')
-					.setDescription('Embed title (defaults to "Pick your roles" for a new message)')
-					.setMaxLength(256)
-					.setRequired(false))
-				.addStringOption((option) => option
-					.setName('description')
-					.setDescription('Embed description')
-					.setMaxLength(2000)
-					.setRequired(false))
-				.addBooleanOption((option) => option
-					.setName('apply_channel_defaults')
-					.setDescription('Lock the channel to admin/bot posting and member-only visibility')
-					.setRequired(false)))
-			.addSubcommand((sub) => addDropdownRoleSlotOptions(sub
-				.setName('add-roles')
-				.setDescription('(Manage Channels) Add up to 5 roles to a dropdown role message.')
-				.addStringOption((option) => messageOption(option, 'The dropdown role message'))))
-			.addSubcommand((sub) => sub
-				.setName('remove-role')
-				.setDescription('(Manage Channels) Remove a role from a dropdown role message.')
-				.addStringOption((option) => messageOption(option, 'The dropdown role message'))
-				.addRoleOption((option) => option
-					.setName('role')
-					.setDescription('Role to remove')
-					.setRequired(true))))
+			.addSubcommand(buildCreateSubcommand)
+			.addSubcommand(buildAddRoleSubcommand)
+			.addSubcommand(buildRemoveRoleSubcommand))
 		.addSubcommand((sub) => sub
 			.setName('list')
 			.setDescription("(Manage Channels) List this server's configured role menus."))
