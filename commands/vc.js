@@ -1,5 +1,8 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { resolveCallerChannel, requireOwner } = require('../lib/vcScope');
+const { isMod } = require('../lib/permissions');
+const voiceStore = require('../state/voiceChannels');
+const guildSettings = require('../state/guildSettings');
 
 // Owner self-service on the temp channel the caller currently owns — distinct
 // from /voice, which is guild-admin hub management (Manage Channels). Every
@@ -87,6 +90,10 @@ async function handleUnlock(interaction) {
 }
 
 async function handleKick(interaction) {
+	if (guildSettings.isOwnerKickDisabled(interaction.guildId)) {
+		throw new Error('Server admins have disabled kicking for channel owners.');
+	}
+
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
 
@@ -105,12 +112,82 @@ async function handleKick(interaction) {
 	await interaction.reply({ content: `Disconnected ${target} from the channel.`, ephemeral: true });
 }
 
+// Shared by claim and transfer: moves both the channel's actual permission
+// overwrite (delete the old owner's grant, create a fresh one for the new
+// owner — .create() replaces any existing overwrite outright rather than
+// merging, so there's no leftover from the old grant) and our own tracking.
+async function transferOwnership(channel, fromId, toId) {
+	await channel.permissionOverwrites.delete(fromId).catch(() => null);
+	await channel.permissionOverwrites.create(toId, {
+		ManageChannels: true,
+		MoveMembers: true,
+		Connect: true,
+	}, { reason: 'Ownership transferred via /vc claim or /vc transfer' });
+	voiceStore.setTempChannelOwner(channel.id, toId);
+}
+
+// Claim policy (see pariahbot-temp-voice-channels memory): a mod owner can
+// never be claimed away from, by anyone — only their own /vc transfer moves
+// it. A non-mod owner can be claimed by anyone once they're gone from the
+// channel, or force-claimed by a mod even while they're still present.
+async function handleClaim(interaction) {
+	const { channel, record } = resolveCallerChannel(interaction);
+
+	if (record.ownerId === interaction.user.id) {
+		throw new Error('You already own this channel.');
+	}
+
+	const ownerMember = interaction.guild.members.cache.get(record.ownerId)
+		?? await interaction.guild.members.fetch(record.ownerId).catch(() => null);
+	const ownerIsMod = ownerMember ? isMod(ownerMember, interaction.guildId) : false;
+
+	if (ownerIsMod) {
+		throw new Error("This channel is under moderator control — ask them to /vc transfer it to you.");
+	}
+
+	const ownerPresent = ownerMember?.voice.channelId === channel.id;
+	const callerIsMod = isMod(interaction.member, interaction.guildId);
+
+	if (ownerPresent && !callerIsMod) {
+		throw new Error("The owner is still in this channel — only a mod can claim it while they're present.");
+	}
+
+	await transferOwnership(channel, record.ownerId, interaction.user.id);
+	await interaction.reply({
+		content: ownerPresent
+			? "You've claimed this channel as a mod, overriding its current owner."
+			: "You've claimed this channel — its previous owner wasn't here.",
+		ephemeral: true,
+	});
+}
+
+async function handleTransfer(interaction) {
+	const { channel, record } = resolveCallerChannel(interaction);
+	requireOwner(interaction, record);
+
+	const target = interaction.options.getMember('member');
+	if (!target) {
+		throw new Error("Couldn't find that member in this server.");
+	}
+	if (target.id === interaction.user.id) {
+		throw new Error('You already own this channel.');
+	}
+	if (target.voice.channelId !== channel.id) {
+		throw new Error(`${target} isn't in this channel.`);
+	}
+
+	await transferOwnership(channel, interaction.user.id, target.id);
+	await interaction.reply({ content: `Transferred ownership of this channel to ${target}.`, ephemeral: true });
+}
+
 const HANDLERS = {
 	name: handleName,
 	limit: handleLimit,
 	lock: handleLock,
 	unlock: handleUnlock,
 	kick: handleKick,
+	claim: handleClaim,
+	transfer: handleTransfer,
 };
 
 module.exports = {
@@ -146,6 +223,16 @@ module.exports = {
 			.addUserOption((option) => option
 				.setName('member')
 				.setDescription('Member to disconnect')
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('claim')
+			.setDescription("Take ownership of this channel if its owner is gone (or you're a mod)."))
+		.addSubcommand((sub) => sub
+			.setName('transfer')
+			.setDescription('Hand ownership of this channel to someone else in it.')
+			.addUserOption((option) => option
+				.setName('member')
+				.setDescription('Member to make the new owner')
 				.setRequired(true))),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();

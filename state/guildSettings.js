@@ -57,6 +57,7 @@ function getGuildSettings(guildId) {
 		defaultChannelId: row?.default_channel_id ?? null,
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
 		modRoleId: row?.mod_role_id ?? null,
+		ownerKickDisabled: !!row?.owner_kick_disabled,
 	};
 }
 
@@ -114,6 +115,26 @@ function getModRole(guildId) {
 	return selectModRoleStmt.get(guildId)?.mod_role_id ?? null;
 }
 
+const setOwnerKickDisabledStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, owner_kick_disabled)
+	VALUES (@guildId, @disabled)
+	ON CONFLICT(guild_id) DO UPDATE SET owner_kick_disabled = excluded.owner_kick_disabled
+`);
+
+function disableOwnerKick(guildId) {
+	setOwnerKickDisabledStmt.run({ guildId, disabled: 1 });
+}
+
+function enableOwnerKick(guildId) {
+	setOwnerKickDisabledStmt.run({ guildId, disabled: 0 });
+}
+
+const selectOwnerKickDisabledStmt = db.prepare('SELECT owner_kick_disabled FROM guild_settings WHERE guild_id = ?');
+
+function isOwnerKickDisabled(guildId) {
+	return !!selectOwnerKickDisabledStmt.get(guildId)?.owner_kick_disabled;
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -126,4 +147,7 @@ module.exports = {
 	setModRole,
 	clearModRole,
 	getModRole,
+	disableOwnerKick,
+	enableOwnerKick,
+	isOwnerKickDisabled,
 };
