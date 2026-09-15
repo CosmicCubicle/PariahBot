@@ -1,17 +1,9 @@
 require('dotenv').config({ path: 'hom.env' });
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
-// GuildMessageReactions is non-privileged and needed for reaction roles. The bot
-// doesn't take GuildMessages (no need to read message content/history), so
-// messages/reactions on anything it hasn't already touched arrive as partials —
-// Partials.Message/Reaction/User let events fetch the full object on demand
-// instead of silently no-op-ing on uncached messages (e.g. after a restart).
-const client = new Client({
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions],
-	partials: [Partials.Message, Partials.Reaction, Partials.User],
-});
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 
 client.commands = new Collection();
 

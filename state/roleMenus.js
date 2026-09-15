@@ -6,7 +6,6 @@ function mapMenu(row) {
 		messageId: row.message_id,
 		guildId: row.guild_id,
 		channelId: row.channel_id,
-		type: row.type,
 	};
 }
 
@@ -15,18 +14,17 @@ function mapOption(row) {
 	return {
 		messageId: row.message_id,
 		roleId: row.role_id,
-		emoji: row.emoji,
 		descriptor: row.descriptor,
 	};
 }
 
 const insertMenuStmt = db.prepare(`
-	INSERT INTO role_menus (message_id, guild_id, channel_id, type)
-	VALUES (@messageId, @guildId, @channelId, @type)
+	INSERT INTO role_menus (message_id, guild_id, channel_id)
+	VALUES (@messageId, @guildId, @channelId)
 `);
 
-function createMenu({ messageId, guildId, channelId, type }) {
-	insertMenuStmt.run({ messageId, guildId, channelId, type });
+function createMenu({ messageId, guildId, channelId }) {
+	insertMenuStmt.run({ messageId, guildId, channelId });
 }
 
 const selectMenuStmt = db.prepare('SELECT * FROM role_menus WHERE message_id = ?');
@@ -56,15 +54,14 @@ function listMenusForGuild(guildId) {
 }
 
 const upsertOptionStmt = db.prepare(`
-	INSERT INTO role_menu_options (message_id, role_id, emoji, descriptor)
-	VALUES (@messageId, @roleId, @emoji, @descriptor)
+	INSERT INTO role_menu_options (message_id, role_id, descriptor)
+	VALUES (@messageId, @roleId, @descriptor)
 	ON CONFLICT(message_id, role_id) DO UPDATE SET
-		emoji = excluded.emoji,
 		descriptor = excluded.descriptor
 `);
 
-function addOption({ messageId, roleId, emoji, descriptor }) {
-	upsertOptionStmt.run({ messageId, roleId, emoji: emoji ?? null, descriptor: descriptor ?? null });
+function addOption({ messageId, roleId, descriptor }) {
+	upsertOptionStmt.run({ messageId, roleId, descriptor: descriptor ?? null });
 }
 
 const deleteOptionStmt = db.prepare('DELETE FROM role_menu_options WHERE message_id = ? AND role_id = ?');

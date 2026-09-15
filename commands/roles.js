@@ -1,13 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
 const roleMenuStore = require('../state/roleMenus');
 const { applyChannelDefaults } = require('../lib/roleAssignmentChannel');
-const {
-	parseEmoji,
-	buildReactionMenuEmbed,
-	buildDropdownAnchorEmbed,
-	refreshMenuEmbed,
-	buildOpenButtonRow,
-} = require('../lib/roleMenus');
+const { buildDropdownAnchorEmbed, refreshMenuEmbed, buildOpenButtonRow } = require('../lib/roleMenus');
 
 function requireManageChannels(interaction) {
 	if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels)) {
@@ -15,14 +9,13 @@ function requireManageChannels(interaction) {
 	}
 }
 
-// Shared by every *-add-role/*-remove-role subcommand: resolves the `message`
-// option (populated by autocomplete, but not guaranteed to have come from it —
-// see the same caveat in commands/voice.js's handleRemove) to a menu of the
-// expected type in this guild.
-function requireMenu(interaction, type) {
+// Shared by add-roles/remove-role: resolves the `message` option (populated by
+// autocomplete, but not guaranteed to have come from it — see the same caveat
+// in commands/voice.js's handleRemove) to a menu in this guild.
+function requireMenu(interaction) {
 	const messageId = interaction.options.getString('message');
 	const menu = roleMenuStore.getMenu(messageId);
-	if (!menu || menu.guildId !== interaction.guildId || menu.type !== type) {
+	if (!menu || menu.guildId !== interaction.guildId) {
 		throw new Error("Couldn't find a matching role menu with that message — pick one from the autocomplete list.");
 	}
 	return menu;
@@ -86,95 +79,8 @@ function addRoleSlotsToMenu(interaction, menu, slots) {
 	}
 
 	for (const { role, descriptor } of slots) {
-		roleMenuStore.addOption({ messageId: menu.messageId, roleId: role.id, emoji: null, descriptor: descriptor ?? null });
+		roleMenuStore.addOption({ messageId: menu.messageId, roleId: role.id, descriptor: descriptor ?? null });
 	}
-}
-
-async function handleReactionCreate(interaction) {
-	requireManageChannels(interaction);
-
-	const channel = interaction.options.getChannel('channel');
-	const title = interaction.options.getString('title');
-	const description = interaction.options.getString('description');
-	const applyDefaults = interaction.options.getBoolean('apply_channel_defaults') ?? false;
-
-	const message = await channel.send({ embeds: [buildReactionMenuEmbed(title, description, [])] });
-	roleMenuStore.createMenu({ messageId: message.id, guildId: interaction.guildId, channelId: channel.id, type: 'reaction' });
-
-	let note = '';
-	if (applyDefaults) {
-		await applyChannelDefaults(channel, interaction.guildId);
-		note = ' Channel defaults applied.';
-	}
-
-	await interaction.reply({
-		content: `Created a reaction-role message in ${channel}: ${message.url}\nAdd roles to it with \`/roles reaction add-role\`.${note}`,
-		ephemeral: true,
-	});
-}
-
-async function handleReactionAddRole(interaction) {
-	requireManageChannels(interaction);
-
-	const menu = requireMenu(interaction, 'reaction');
-	const role = interaction.options.getRole('role');
-	const rawEmoji = interaction.options.getString('emoji');
-
-	if (roleMenuStore.getOptionByRole(menu.messageId, role.id)) {
-		throw new Error(`${role} is already on this message.`);
-	}
-
-	const existingOptions = roleMenuStore.getOptions(menu.messageId);
-	if (existingOptions.length >= 20) {
-		throw new Error('This message already has the maximum of 20 reaction roles Discord allows.');
-	}
-
-	const parsed = parseEmoji(rawEmoji);
-	if (existingOptions.some((option) => parseEmoji(option.emoji).matchKey === parsed.matchKey)) {
-		throw new Error('That emoji is already used on this message.');
-	}
-
-	requireRoleBelowBot(interaction, role);
-
-	const message = await fetchMenuMessage(interaction, menu);
-	if (!message) {
-		throw new Error("Couldn't find that message anymore — it may have been deleted.");
-	}
-
-	try {
-		await message.react(parsed.raw);
-	} catch (error) {
-		throw new Error(`Couldn't react with that emoji: ${error.message}`);
-	}
-
-	roleMenuStore.addOption({ messageId: menu.messageId, roleId: role.id, emoji: parsed.raw, descriptor: null });
-	await refreshMenuEmbed(message, roleMenuStore.getOptions(menu.messageId), buildReactionMenuEmbed);
-
-	await interaction.reply({ content: `Added ${role} on ${parsed.raw} to that message.`, ephemeral: true });
-}
-
-async function handleReactionRemoveRole(interaction) {
-	requireManageChannels(interaction);
-
-	const menu = requireMenu(interaction, 'reaction');
-	const role = interaction.options.getRole('role');
-
-	const option = roleMenuStore.getOptionByRole(menu.messageId, role.id);
-	if (!option) {
-		throw new Error(`${role} isn't on this message.`);
-	}
-
-	roleMenuStore.removeOption(menu.messageId, role.id);
-
-	const message = await fetchMenuMessage(interaction, menu);
-	if (message) {
-		const parsed = parseEmoji(option.emoji);
-		const reaction = message.reactions.cache.find((r) => (r.emoji.id ?? r.emoji.name) === parsed.matchKey);
-		await reaction?.remove().catch(() => null);
-		await refreshMenuEmbed(message, roleMenuStore.getOptions(menu.messageId), buildReactionMenuEmbed);
-	}
-
-	await interaction.reply({ content: `Removed ${role} from that message.`, ephemeral: true });
 }
 
 async function handleDropdownCreate(interaction) {
@@ -191,11 +97,6 @@ async function handleDropdownCreate(interaction) {
 	let menu;
 
 	if (existingMessageId) {
-		const existingMenu = roleMenuStore.getMenu(existingMessageId);
-		if (existingMenu && existingMenu.type !== 'dropdown') {
-			throw new Error('That message is already a reaction-role menu, not a dropdown one.');
-		}
-
 		message = await channel.messages.fetch(existingMessageId).catch(() => null);
 		if (!message) {
 			throw new Error("Couldn't find that message in this channel.");
@@ -204,13 +105,14 @@ async function handleDropdownCreate(interaction) {
 			throw new Error('I can only attach a role dropdown to a message I posted myself.');
 		}
 
-		menu = existingMenu ?? { messageId: message.id, guildId: interaction.guildId, channelId: channel.id, type: 'dropdown' };
+		const existingMenu = roleMenuStore.getMenu(existingMessageId);
+		menu = existingMenu ?? { messageId: message.id, guildId: interaction.guildId, channelId: channel.id };
 		if (!existingMenu) {
 			roleMenuStore.createMenu(menu);
 		}
 	} else {
 		message = await channel.send({ embeds: [buildDropdownAnchorEmbed(title ?? 'Pick your roles', description, [])] });
-		menu = { messageId: message.id, guildId: interaction.guildId, channelId: channel.id, type: 'dropdown' };
+		menu = { messageId: message.id, guildId: interaction.guildId, channelId: channel.id };
 		roleMenuStore.createMenu(menu);
 	}
 
@@ -240,7 +142,7 @@ async function handleDropdownCreate(interaction) {
 async function handleDropdownAddRoles(interaction) {
 	requireManageChannels(interaction);
 
-	const menu = requireMenu(interaction, 'dropdown');
+	const menu = requireMenu(interaction);
 	const slots = collectRoleSlots(interaction);
 	if (slots.length === 0) {
 		throw new Error('Pick at least one role to add.');
@@ -262,7 +164,7 @@ async function handleDropdownAddRoles(interaction) {
 async function handleDropdownRemoveRole(interaction) {
 	requireManageChannels(interaction);
 
-	const menu = requireMenu(interaction, 'dropdown');
+	const menu = requireMenu(interaction);
 	const role = interaction.options.getRole('role');
 
 	const removed = roleMenuStore.removeOption(menu.messageId, role.id);
@@ -288,13 +190,13 @@ async function handleList(interaction) {
 	const embed = new EmbedBuilder().setTitle('Role menus').setColor(0x5865f2);
 
 	if (menus.length === 0) {
-		embed.setDescription('No role menus are configured for this server yet. Use `/roles reaction create` or `/roles dropdown create` to make one.');
+		embed.setDescription('No role menus are configured for this server yet. Use `/roles dropdown create` to make one.');
 	} else {
 		for (const menu of menus) {
 			const options = roleMenuStore.getOptions(menu.messageId);
 			const channel = interaction.guild.channels.cache.get(menu.channelId);
 			embed.addFields({
-				name: `${menu.type === 'reaction' ? 'Reaction' : 'Dropdown'} menu in ${channel ? `#${channel.name}` : 'an unknown channel'}`,
+				name: `Dropdown menu in ${channel ? `#${channel.name}` : 'an unknown channel'}`,
 				value: `${options.length} role${options.length === 1 ? '' : 's'} — https://discord.com/channels/${interaction.guildId}/${menu.channelId}/${menu.messageId}`,
 			});
 		}
@@ -318,10 +220,8 @@ async function handleApplyChannelDefaults(interaction) {
 
 async function handleMessageAutocomplete(interaction) {
 	const focusedValue = interaction.options.getFocused().toLowerCase();
-	const group = interaction.options.getSubcommandGroup(false);
-	const type = group === 'dropdown' ? 'dropdown' : 'reaction';
 
-	const menus = roleMenuStore.listMenusForGuild(interaction.guildId).filter((menu) => menu.type === type);
+	const menus = roleMenuStore.listMenusForGuild(interaction.guildId);
 	const choices = menus
 		.map((menu) => {
 			const channel = interaction.guild.channels.cache.get(menu.channelId);
@@ -334,9 +234,6 @@ async function handleMessageAutocomplete(interaction) {
 }
 
 const HANDLERS = {
-	'reaction.create': handleReactionCreate,
-	'reaction.add-role': handleReactionAddRole,
-	'reaction.remove-role': handleReactionRemoveRole,
 	'dropdown.create': handleDropdownCreate,
 	'dropdown.add-roles': handleDropdownAddRoles,
 	'dropdown.remove-role': handleDropdownRemoveRole,
@@ -383,51 +280,6 @@ module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('roles')
 		.setDescription('Configure self-service role menus.')
-		.addSubcommandGroup((group) => group
-			.setName('reaction')
-			.setDescription('Role menus where reacting with an emoji grants a role.')
-			.addSubcommand((sub) => sub
-				.setName('create')
-				.setDescription('(Manage Channels) Post a new reaction-role message.')
-				.addChannelOption((option) => option
-					.setName('channel')
-					.setDescription('Channel to post the message in')
-					.addChannelTypes(ChannelType.GuildText)
-					.setRequired(true))
-				.addStringOption((option) => option
-					.setName('title')
-					.setDescription('Embed title')
-					.setMaxLength(256)
-					.setRequired(true))
-				.addStringOption((option) => option
-					.setName('description')
-					.setDescription('Embed description')
-					.setMaxLength(2000)
-					.setRequired(false))
-				.addBooleanOption((option) => option
-					.setName('apply_channel_defaults')
-					.setDescription('Lock the channel to admin/bot posting and member-only visibility')
-					.setRequired(false)))
-			.addSubcommand((sub) => sub
-				.setName('add-role')
-				.setDescription('(Manage Channels) Add a role + emoji to a reaction-role message.')
-				.addStringOption((option) => messageOption(option, 'The reaction-role message'))
-				.addRoleOption((option) => option
-					.setName('role')
-					.setDescription('Role to grant')
-					.setRequired(true))
-				.addStringOption((option) => option
-					.setName('emoji')
-					.setDescription('Emoji to react with (unicode or a custom emoji from this server)')
-					.setRequired(true)))
-			.addSubcommand((sub) => sub
-				.setName('remove-role')
-				.setDescription('(Manage Channels) Remove a role from a reaction-role message.')
-				.addStringOption((option) => messageOption(option, 'The reaction-role message'))
-				.addRoleOption((option) => option
-					.setName('role')
-					.setDescription('Role to remove')
-					.setRequired(true))))
 		.addSubcommandGroup((group) => group
 			.setName('dropdown')
 			.setDescription('Role menus where a dropdown lets members pick their roles.')

@@ -55,28 +55,21 @@ db.exec(`
 		max_limit      INTEGER NOT NULL
 	);
 
+	-- Dropdown role-selection menus only — reaction roles were removed.
 	CREATE TABLE IF NOT EXISTS role_menus (
 		message_id TEXT PRIMARY KEY,
 		guild_id   TEXT NOT NULL,
-		channel_id TEXT NOT NULL,
-		type       TEXT NOT NULL CHECK (type IN ('reaction', 'dropdown'))
+		channel_id TEXT NOT NULL
 	);
 
-	-- role_id is the primary uniqueness key (a role can only appear once per menu);
-	-- emoji uniqueness for the 'reaction' type is enforced separately below, since a
-	-- partial index can't be expressed inline in a CREATE TABLE column constraint.
-	-- emoji is only ever set for 'reaction' options; descriptor (optional secondary
-	-- text under the role's own name) is only ever set for 'dropdown' options.
+	-- role_id is the primary uniqueness key — a role can only appear once per menu.
+	-- descriptor is optional secondary text shown under the role's own name.
 	CREATE TABLE IF NOT EXISTS role_menu_options (
 		message_id TEXT NOT NULL,
 		role_id    TEXT NOT NULL,
-		emoji      TEXT,
 		descriptor TEXT,
 		PRIMARY KEY (message_id, role_id)
 	);
-
-	CREATE UNIQUE INDEX IF NOT EXISTS idx_role_menu_options_emoji
-		ON role_menu_options (message_id, emoji) WHERE emoji IS NOT NULL;
 `);
 
 // CREATE TABLE IF NOT EXISTS only helps for genuinely new tables — it does nothing
