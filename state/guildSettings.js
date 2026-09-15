@@ -58,6 +58,7 @@ function getGuildSettings(guildId) {
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
 		modRoleId: row?.mod_role_id ?? null,
 		ownerKickDisabled: !!row?.owner_kick_disabled,
+		memberRoleId: row?.member_role_id ?? null,
 	};
 }
 

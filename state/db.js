@@ -54,6 +54,27 @@ db.exec(`
 		min_limit      INTEGER NOT NULL,
 		max_limit      INTEGER NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS role_menus (
+		message_id TEXT PRIMARY KEY,
+		guild_id   TEXT NOT NULL,
+		channel_id TEXT NOT NULL,
+		type       TEXT NOT NULL CHECK (type IN ('reaction', 'dropdown'))
+	);
+
+	-- role_id is the primary uniqueness key (a role can only appear once per menu);
+	-- emoji uniqueness for the 'reaction' type is enforced separately below, since a
+	-- partial index can't be expressed inline in a CREATE TABLE column constraint.
+	CREATE TABLE IF NOT EXISTS role_menu_options (
+		message_id TEXT NOT NULL,
+		role_id    TEXT NOT NULL,
+		emoji      TEXT,
+		label      TEXT,
+		PRIMARY KEY (message_id, role_id)
+	);
+
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_role_menu_options_emoji
+		ON role_menu_options (message_id, emoji) WHERE emoji IS NOT NULL;
 `);
 
 // CREATE TABLE IF NOT EXISTS only helps for genuinely new tables — it does nothing
@@ -86,6 +107,12 @@ if (!hasColumn('guild_settings', 'default_alerts_disabled')) {
 }
 if (!hasColumn('guild_settings', 'owner_kick_disabled')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN owner_kick_disabled INTEGER NOT NULL DEFAULT 0');
+}
+
+// No setter yet — /roles apply-channel-defaults falls back to @everyone until an
+// admin command to set this ships.
+if (!hasColumn('guild_settings', 'member_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN member_role_id TEXT');
 }
 
 module.exports = db;
