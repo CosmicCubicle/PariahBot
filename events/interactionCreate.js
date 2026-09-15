@@ -68,11 +68,17 @@ module.exports = {
 		} catch (error) {
 			console.error(error);
 			await commandLogger.logCommand(commandLogger.buildEntry(interaction, 'error', Date.now() - start, error), interaction.client);
+			// Every branch here is best-effort: if the interaction token is already
+			// dead (expired 3-second window, already responded to, a Discord outage),
+			// trying to report the original error must never itself throw uncaught —
+			// that would crash the whole process over a single failed reply. Matches
+			// the same .catch(() => null) pattern the button/select-menu path above
+			// already uses.
 			const errorReply = { content: `There was an error executing this command: ${error.message}`, ephemeral: true };
 			if (interaction.replied || interaction.deferred) {
-				await interaction.editReply(errorReply).catch(() => interaction.followUp(errorReply));
+				await interaction.editReply(errorReply).catch(() => interaction.followUp(errorReply).catch(() => null));
 			} else {
-				await interaction.reply(errorReply);
+				await interaction.reply(errorReply).catch(() => null);
 			}
 		}
 	},
