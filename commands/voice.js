@@ -129,19 +129,6 @@ async function handleAudit(interaction) {
 	}
 }
 
-async function handleSetModRole(interaction) {
-	requireManageChannels(interaction);
-	const role = interaction.options.getRole('role');
-	guildSettings.setModRole(interaction.guildId, role.id);
-	await interaction.reply({ content: `${role} can now claim temp channels away from a present, non-mod owner (see \`/vc claim\`).`, ephemeral: true });
-}
-
-async function handleClearModRole(interaction) {
-	requireManageChannels(interaction);
-	guildSettings.clearModRole(interaction.guildId);
-	await interaction.reply({ content: 'Cleared the mod role — only Manage Channels holders count as mods now.', ephemeral: true });
-}
-
 async function handleDisableOwnerKick(interaction) {
 	requireManageChannels(interaction);
 	guildSettings.disableOwnerKick(interaction.guildId);
@@ -208,8 +195,6 @@ const HANDLERS = {
 	remove: handleRemove,
 	list: handleList,
 	audit: handleAudit,
-	'set-mod-role': handleSetModRole,
-	'clear-mod-role': handleClearModRole,
 	'disable-owner-kick': handleDisableOwnerKick,
 	'enable-owner-kick': handleEnableOwnerKick,
 };
@@ -258,16 +243,6 @@ module.exports = {
 		.addSubcommand((sub) => sub
 			.setName('audit')
 			.setDescription('(Manage Channels) Check for hubs whose channel no longer exists, with options to prune or restore.'))
-		.addSubcommand((sub) => sub
-			.setName('set-mod-role')
-			.setDescription('(Manage Channels) Set the role that can override temp channel ownership via /vc claim.')
-			.addRoleOption((option) => option
-				.setName('role')
-				.setDescription('Role that counts as a mod for /vc claim')
-				.setRequired(true)))
-		.addSubcommand((sub) => sub
-			.setName('clear-mod-role')
-			.setDescription('(Manage Channels) Remove the configured mod role.'))
 		.addSubcommand((sub) => sub
 			.setName('disable-owner-kick')
 			.setDescription("(Manage Channels) Stop channel owners from using /vc kick."))

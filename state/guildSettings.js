@@ -59,6 +59,7 @@ function getGuildSettings(guildId) {
 		modRoleId: row?.mod_role_id ?? null,
 		ownerKickDisabled: !!row?.owner_kick_disabled,
 		memberRoleId: row?.member_role_id ?? null,
+		streamerRoleId: row?.streamer_role_id ?? null,
 	};
 }
 
@@ -138,7 +139,7 @@ function isOwnerKickDisabled(guildId) {
 
 // The role that identifies a regular member — used by /roles apply-channel-defaults
 // to decide who can view a role-selection channel. Falls back to @everyone (see
-// lib/roleAssignmentChannel.js) until this is set via /member role set.
+// lib/roleAssignmentChannel.js) until this is set via /setup member-role.
 const upsertMemberRoleStmt = db.prepare(`
 	INSERT INTO guild_settings (guild_id, member_role_id)
 	VALUES (@guildId, @roleId)
@@ -151,6 +152,21 @@ function setMemberRole(guildId, roleId) {
 
 function clearMemberRole(guildId) {
 	upsertMemberRoleStmt.run({ guildId, roleId: null });
+}
+
+// No consumer yet — set via /setup streamer-role and stored for future use.
+const upsertStreamerRoleStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, streamer_role_id)
+	VALUES (@guildId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET streamer_role_id = excluded.streamer_role_id
+`);
+
+function setStreamerRole(guildId, roleId) {
+	upsertStreamerRoleStmt.run({ guildId, roleId });
+}
+
+function clearStreamerRole(guildId) {
+	upsertStreamerRoleStmt.run({ guildId, roleId: null });
 }
 
 module.exports = {
@@ -170,4 +186,6 @@ module.exports = {
 	isOwnerKickDisabled,
 	setMemberRole,
 	clearMemberRole,
+	setStreamerRole,
+	clearStreamerRole,
 };

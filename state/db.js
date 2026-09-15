@@ -104,10 +104,15 @@ if (!hasColumn('guild_settings', 'owner_kick_disabled')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN owner_kick_disabled INTEGER NOT NULL DEFAULT 0');
 }
 
-// No setter yet — /roles apply-channel-defaults falls back to @everyone until an
-// admin command to set this ships.
+// Set via /setup member-role. /roles apply-channel-defaults falls back to
+// @everyone until this is set.
 if (!hasColumn('guild_settings', 'member_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN member_role_id TEXT');
+}
+
+// Set via /setup streamer-role. No consumer yet — stored for future use.
+if (!hasColumn('guild_settings', 'streamer_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN streamer_role_id TEXT');
 }
 
 module.exports = db;
