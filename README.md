@@ -8,6 +8,8 @@ PariahBot is a self-hosted Discord bot that consolidates several single-purpose 
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
+- **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the server's member role. Optionally gates the rest of the server behind verification.
+- **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 - Dynamic slash-command loading from `commands/`, with `/help` generated from whatever is currently registered.
@@ -61,13 +63,36 @@ Everything else — alert destinations, voice hubs, role menus, auto-delete sett
 2. Create its bot and copy the token into `DISCORD_TOKEN`.
 3. Copy the application ID into `CLIENT_ID`.
 4. Add the `bot` and `applications.commands` scopes when installing it in a server.
-5. Give it these permissions:
-   - View Channels, Send Messages, Embed Links, Attach Files, Read Message History (baseline).
-   - Manage Channels and Move Members (temporary voice channels).
-   - Manage Roles (role menus — the bot's own role must also sit **above** any role it hands out).
-   - Manage Messages (auto-deletion).
+5. Grant the permissions below.
 
-The bot requests the Guilds, Guild Voice States (temporary voice channels), and Guild Messages (auto-deletion) gateway intents. None are privileged, so no Developer Portal toggles are required.
+### Required permissions
+
+Every permission the bot actually uses, and what needs it. Omitting one only
+breaks the features listed beside it — the rest keep working.
+
+| Permission | Needed for |
+| --- | --- |
+| View Channels | Everything. |
+| Send Messages | Everything — command replies, role menus, alerts, the verification and honeypot messages. |
+| Embed Links | Embeds, which nearly every command replies with. |
+| Read Message History | `/autodelete` (reading the channel backlog and its pins) and re-finding the `/roles` and `/security` messages it posted earlier. |
+| Manage Channels | Creating and deleting channels and categories — `/voice`, temporary voice channels and their cleanup, `/alerts` default channel, and the channels `/security` creates. Also `/vc name` and `/vc limit`. |
+| Manage Roles | Editing channel permission overwrites (`/vc lock`/`unlock`/`transfer`, `/roles apply-channel-defaults`, the screening and honeypot channels), creating roles via `/setup`, and granting/removing roles for role menus and the captcha. |
+| Move Members | Moving members into their temporary voice channel, and `/vc kick`. |
+| Connect | `/vc lock` and `/vc unlock`. The bot grants itself `Connect` on a channel before denying it to `@everyone`, and Discord only lets it grant a permission it already holds — without this it would lock itself out. |
+| Manage Messages | `/autodelete` deleting other people's messages. |
+| Ban Members | The `/security` honeypot — required even for its default "remove", which is a softban (ban then immediate unban). No Kick Members needed. |
+
+**Role hierarchy matters as much as the permissions.** The bot's own role must
+sit **above** any role it hands out (member role, role-menu roles) and above
+anyone the honeypot might remove. `/security captcha setup` checks this up
+front, but the other features fail at the point of use.
+
+The bot requests the Guilds, Guild Voice States (temporary voice channels), and
+Guild Messages (auto-deletion, honeypot) gateway intents. **None are
+privileged**, so no Developer Portal toggles are required — the verification
+captcha deliberately uses a button in a screening channel rather than listening
+for join events, which would have needed the privileged Guild Members intent.
 
 ## Commands
 
@@ -80,6 +105,7 @@ The bot requests the Guilds, Guild Voice States (temporary voice channels), and 
 | `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
+| `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 
 Add new command modules to `commands/`. Run `npm run deploy` after changing command definitions.
@@ -98,7 +124,36 @@ Commands marked (Admin) require either Discord's **Administrator** permission or
 /voice create name:➕ Join to Create
 /roles dropdown create channel:#roles role:@Gamer descriptor:Ping for game nights
 /autodelete set channel:#spam duration:24h count:100
+/security captcha setup adjust_visibility:true
+/security honeypot setup
 ```
+
+### Anti-spam (`/security`)
+
+**Captcha.** `/security captcha setup` posts a verification message in a
+screening channel (created for you, or pass `channel:` to use an existing one).
+A member presses **Start verification** and is privately asked to pick one
+specific option from a dropdown — which option is correct is randomized per
+person, so a bot can't pass by blindly clicking the only thing on screen.
+Passing grants the member role.
+
+It **requires a member role to already be set** (`/setup member-role`) — that's
+the role it hands out, so setup refuses without one and tells you how to fix
+it. It also checks the bot's own role sits above it, since otherwise every
+verification would fail.
+
+`adjust_visibility: true` additionally removes `View Channels` from
+`@everyone` and grants it to the member role, so unverified members see only
+the screening channel. That's a server-wide change, so it's off by default and
+the bot tells you exactly what it altered. Undo it by giving `@everyone`
+`View Channels` back in Server Settings → Roles.
+
+**Honeypot.** `/security honeypot setup` designates a trap channel and posts a
+warning in it. Anyone who posts there is removed — by default a *softban*
+(banned then immediately unbanned, so Discord deletes their recent messages but
+they can rejoin), or `action: ban` to ban outright. Admins and mod-role members
+are always skipped, so you can check on the channel safely. Every action is
+reported through `/alerts`.
 
 ## Host Installation
 

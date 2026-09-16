@@ -17,6 +17,23 @@ All stateful data (anything that must survive a restart or be shared across even
 
 Only reach for this pattern when Discord is genuinely the source of truth and the data is cheap to rebuild. Everything else goes in SQLite.
 
+## Destructive actions
+
+`lib/honeypot.js` is the only code path in this bot that bans or kicks anyone.
+Two invariants there are not optional:
+
+- **Admins and mod-role members are always skipped** (`isAdmin` from
+  `lib/permissions.js`). A moderator who wanders into the trap channel must
+  never be removed by their own bot. Any change to that file needs to keep this
+  check ahead of the removal.
+- **DM before removing.** Once a user is banned the bot can't open a DM channel
+  with them, so the notification has to go out first. The DM itself is
+  best-effort (closed DMs must not block the removal).
+
+The default "remove" is a softban — ban then immediately unban — because a
+plain kick leaves the spam behind, and `deleteMessageSeconds` is what actually
+cleans it up.
+
 ## Guild isolation
 
 The bot runs in multiple servers against one shared database, so every feature has to stay scoped to the guild it was invoked from.
