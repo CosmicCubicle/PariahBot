@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const commandLogger = require('../logging/commandLogger');
 const { handleHubButtonInteraction } = require('../lib/hubDesync');
 const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
+const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require('../lib/captcha');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -23,7 +24,8 @@ module.exports = {
 			// clicker either way.
 			try {
 				const handled = await handleHubButtonInteraction(interaction)
-					|| await handleRoleMenuButtonInteraction(interaction);
+					|| await handleRoleMenuButtonInteraction(interaction)
+					|| await handleVerifyStartInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
@@ -33,7 +35,8 @@ module.exports = {
 
 		if (interaction.isStringSelectMenu()) {
 			try {
-				const handled = await handleRoleMenuSelectInteraction(interaction);
+				const handled = await handleRoleMenuSelectInteraction(interaction)
+					|| await handleVerifyAnswerInteraction(interaction);
 				if (!handled) return; // some other feature's select menu, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
@@ -68,11 +71,17 @@ module.exports = {
 		} catch (error) {
 			console.error(error);
 			await commandLogger.logCommand(commandLogger.buildEntry(interaction, 'error', Date.now() - start, error), interaction.client);
+			// Every branch here is best-effort: if the interaction token is already
+			// dead (expired 3-second window, already responded to, a Discord outage),
+			// trying to report the original error must never itself throw uncaught —
+			// that would crash the whole process over a single failed reply. Matches
+			// the same .catch(() => null) pattern the button/select-menu path above
+			// already uses.
 			const errorReply = { content: `There was an error executing this command: ${error.message}`, ephemeral: true };
 			if (interaction.replied || interaction.deferred) {
-				await interaction.editReply(errorReply).catch(() => interaction.followUp(errorReply));
+				await interaction.editReply(errorReply).catch(() => interaction.followUp(errorReply).catch(() => null));
 			} else {
-				await interaction.reply(errorReply);
+				await interaction.reply(errorReply).catch(() => null);
 			}
 		}
 	},

@@ -48,6 +48,12 @@ async function handleSet(interaction) {
 	const liveSeconds = durationRaw ? autoDelete.parseDuration(durationRaw) : 0;
 	const config = { maxMessages, liveSeconds };
 
+	// Turning on tracking for a channel with backlog (fetching history, then
+	// possibly reaping a lot of it immediately) can take longer than Discord's
+	// 3-second reply window — defer right away so the interaction token is
+	// still alive by the time that finishes, no matter how long it takes.
+	await interaction.deferReply({ ephemeral: true });
+
 	autoDeleteStore.setChannel(channel.id, interaction.guildId, maxMessages, liveSeconds);
 
 	if (autoDelete.isTracked(channel.id)) {
@@ -57,7 +63,7 @@ async function handleSet(interaction) {
 		await autoDelete.startTracking(channel, config);
 	}
 
-	await interaction.reply({ content: `Auto-delete enabled in ${channel}: ${describeConfig(config)}`, ephemeral: true });
+	await interaction.editReply({ content: `Auto-delete enabled in ${channel}: ${describeConfig(config)}` });
 }
 
 async function handleDisable(interaction) {

@@ -1,7 +1,7 @@
 {
   "name": "pariahbot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Self-hosted Discord bot: temporary voice channels, self-service role menus, per-channel message auto-deletion, and admin alerting.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

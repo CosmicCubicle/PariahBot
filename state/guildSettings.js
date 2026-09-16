@@ -59,6 +59,10 @@ function getGuildSettings(guildId) {
 		ownerKickDisabled: !!row?.owner_kick_disabled,
 		memberRoleId: row?.member_role_id ?? null,
 		streamerRoleId: row?.streamer_role_id ?? null,
+		screeningChannelId: row?.screening_channel_id ?? null,
+		screeningMessageId: row?.screening_message_id ?? null,
+		honeypotChannelId: row?.honeypot_channel_id ?? null,
+		honeypotAction: row?.honeypot_action ?? 'kick',
 	};
 }
 
@@ -173,6 +177,47 @@ function clearStreamerRole(guildId) {
 	upsertStreamerRoleStmt.run({ guildId, roleId: null });
 }
 
+// The captcha screening channel and its persistent Verify message — see
+// lib/captcha.js. Both are cleared together by /security captcha disable;
+// a null screening_channel_id is what "captcha is off" means.
+const upsertScreeningStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, screening_channel_id, screening_message_id)
+	VALUES (@guildId, @channelId, @messageId)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		screening_channel_id = excluded.screening_channel_id,
+		screening_message_id = excluded.screening_message_id
+`);
+
+function setScreening(guildId, channelId, messageId) {
+	upsertScreeningStmt.run({ guildId, channelId, messageId });
+}
+
+function clearScreening(guildId) {
+	upsertScreeningStmt.run({ guildId, channelId: null, messageId: null });
+}
+
+// The honeypot trap channel and what to do with anyone who posts in it — see
+// lib/honeypot.js. action is 'kick' (softban) or 'ban'.
+const upsertHoneypotStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, honeypot_channel_id, honeypot_action)
+	VALUES (@guildId, @channelId, @action)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		honeypot_channel_id = excluded.honeypot_channel_id,
+		honeypot_action = excluded.honeypot_action
+`);
+
+function setHoneypot(guildId, channelId, action) {
+	upsertHoneypotStmt.run({ guildId, channelId, action });
+}
+
+// Leaves honeypot_action alone: it's NOT NULL, and it's meaningless while the
+// channel is null anyway, so the previous choice survives a re-enable.
+const clearHoneypotStmt = db.prepare('UPDATE guild_settings SET honeypot_channel_id = NULL WHERE guild_id = ?');
+
+function clearHoneypot(guildId) {
+	clearHoneypotStmt.run(guildId);
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -193,4 +238,8 @@ module.exports = {
 	clearMemberRole,
 	setStreamerRole,
 	clearStreamerRole,
+	setScreening,
+	clearScreening,
+	setHoneypot,
+	clearHoneypot,
 };

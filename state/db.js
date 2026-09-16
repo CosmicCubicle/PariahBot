@@ -144,6 +144,28 @@ if (!hasColumn('guild_settings', 'streamer_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN streamer_role_id TEXT');
 }
 
+// /security captcha. There's no separate "enabled" flag on purpose: a set
+// screening_channel_id *is* "captcha is on", and disabling clears it. The
+// sticky-disabled flag alerts needs (default_alerts_disabled) only exists
+// because alerts auto-provision themselves on startup — these don't.
+// screening_message_id tracks the persistent Verify message so re-running
+// setup refreshes it instead of posting a second one.
+if (!hasColumn('guild_settings', 'screening_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN screening_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'screening_message_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN screening_message_id TEXT');
+}
+
+// /security honeypot. honeypot_action is 'kick' (softban, the default) or
+// 'ban'; it's only meaningful while honeypot_channel_id is set.
+if (!hasColumn('guild_settings', 'honeypot_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN honeypot_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'honeypot_action')) {
+	db.exec("ALTER TABLE guild_settings ADD COLUMN honeypot_action TEXT NOT NULL DEFAULT 'kick'");
+}
+
 // Installs that already had role_menus/role_menu_options from before the
 // reaction-roles removal hit CREATE TABLE IF NOT EXISTS as a no-op above, same
 // as every other case on this page. role_menus.type was NOT NULL, so simply
