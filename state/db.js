@@ -88,6 +88,17 @@ db.exec(`
 		max_messages INTEGER NOT NULL DEFAULT 0,
 		live_seconds INTEGER NOT NULL DEFAULT 0
 	);
+
+	-- last_xp_at enforces the per-message XP cooldown (see lib/leveling.js) —
+	-- stored here rather than in memory so the cooldown survives a restart.
+	CREATE TABLE IF NOT EXISTS user_levels (
+		guild_id   TEXT NOT NULL,
+		user_id    TEXT NOT NULL,
+		xp         INTEGER NOT NULL DEFAULT 0,
+		level      INTEGER NOT NULL DEFAULT 0,
+		last_xp_at TEXT,
+		PRIMARY KEY (guild_id, user_id)
+	);
 `);
 
 // CREATE TABLE IF NOT EXISTS only helps for genuinely new tables — it does nothing

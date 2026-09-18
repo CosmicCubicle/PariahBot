@@ -1,5 +1,6 @@
 const { Events } = require('discord.js');
 const { isTracked, trackMessage, reapChannel } = require('../lib/autoDelete');
+const { grantMessageXp } = require('../lib/leveling');
 const { handleHoneypotMessage } = require('../lib/honeypot');
 
 module.exports = {
@@ -12,6 +13,13 @@ module.exports = {
 			return false;
 		});
 		if (trapped) return;
+
+		if (message.inGuild() && !message.author.bot) {
+			const result = grantMessageXp(message.guildId, message.author.id);
+			if (result?.leveledUp) {
+				await message.channel.send(`🎉 ${message.author} just reached level **${result.level}**!`).catch(() => null);
+			}
+		}
 
 		if (!isTracked(message.channelId)) return;
 
