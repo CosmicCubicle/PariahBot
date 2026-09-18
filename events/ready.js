@@ -4,6 +4,7 @@ const { reconcileTempChannels } = require('../lib/tempChannelCleanup');
 const { checkAndNotifyDeadHubs } = require('../lib/hubDesync');
 const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
+const { scheduleActiveGiveaways } = require('../lib/giveaways');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -31,5 +32,6 @@ module.exports = {
 		// that expired while the bot was offline) before the sweep timer starts.
 		await autoDelete.seedAll(client, autoDeleteStore.listAllChannels());
 		autoDelete.startSweepTimer();
+		scheduleActiveGiveaways(client);
 	},
 };

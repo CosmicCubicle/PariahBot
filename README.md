@@ -11,6 +11,7 @@ PariahBot is a self-hosted Discord bot that consolidates several single-purpose 
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the server's member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
+- **Giveaways** — admins can create timed giveaways, members enter with a button, and winners are selected automatically when the giveaway ends.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 - Dynamic slash-command loading from `commands/`, with `/help` generated from whatever is currently registered.
 - Optional `systemd` deployment with periodic GitHub synchronization.
@@ -107,6 +108,7 @@ for join events, which would have needed the privileged Guild Members intent.
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
+| `/giveaway` | (Admin) Create timed giveaways with `create`, or end one early with `end`. Members enter from the posted button. |
 
 Add new command modules to `commands/`. Run `npm run deploy` after changing command definitions.
 
