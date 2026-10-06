@@ -56,7 +56,13 @@ async function handleCaptchaSetup(interaction) {
 	const channel = await resolveOrCreateChannel(interaction, DEFAULT_SCREENING_CHANNEL_NAME);
 	const { screeningMessageId } = guildSettings.getGuildSettings(interaction.guildId);
 
-	const message = await setupScreeningChannel(channel, screeningMessageId);
+	const modRoleIds = guildSettings.listModRoles(interaction.guildId);
+
+	const message = await setupScreeningChannel(channel, screeningMessageId, {
+		restrict: adjustVisibility,
+		memberRoleId: memberRole.id,
+		modRoleIds,
+	});
 	guildSettings.setScreening(interaction.guildId, channel.id, message.id);
 
 	const lines = [
@@ -66,17 +72,24 @@ async function handleCaptchaSetup(interaction) {
 
 	if (adjustVisibility) {
 		await applyVisibilityLockdown(interaction.guild, memberRole.id);
+
+		const modMentions = modRoleIds.length
+			? modRoleIds.map((id) => `<@&${id}>`).join(', ')
+			: 'no mod roles are configured, so only Administrators';
+
 		lines.push(
 			'',
-			'**Server visibility adjusted:** `View Channels` was removed from @everyone and granted to '
-			+ `${memberRole}, so unverified members now see only ${channel}. This also covers channels created later. `
-			+ 'To undo it, give @everyone `View Channels` back in Server Settings → Roles.',
+			'**Server visibility adjusted:**',
+			`• ${channel} is now visible only to unverified members and ${modMentions}. Once someone verifies and receives ${memberRole}, the channel disappears for them.`,
+			`• \`View Channels\` was removed from @everyone and granted to ${memberRole}, so unverified members see only ${channel}. This also covers channels created later.`,
+			'',
+			`To undo: give @everyone \`View Channels\` back, and clear the \`View Channels\` deny for ${memberRole} on ${channel} — both in Server Settings.`,
 		);
 	} else {
 		lines.push(
 			'',
-			'Visibility was left alone — verified and unverified members currently see the same channels. '
-			+ 'Re-run with `adjust_visibility: true` if you want the bot to gate the rest of the server behind verification.',
+			`Visibility was left alone — ${channel} stays visible to everyone, and verified and unverified members see the same channels. `
+			+ 'Re-run with `adjust_visibility: true` to hide the rest of the server from unverified members, and hide the screening channel from verified ones.',
 		);
 	}
 
