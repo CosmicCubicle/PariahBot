@@ -3,6 +3,7 @@ const commandLogger = require('../logging/commandLogger');
 const { handleHubButtonInteraction } = require('../lib/hubDesync');
 const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
 const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require('../lib/captcha');
+const { handleEntryInteraction } = require('../lib/giveaways');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -25,7 +26,8 @@ module.exports = {
 			try {
 				const handled = await handleHubButtonInteraction(interaction)
 					|| await handleRoleMenuButtonInteraction(interaction)
-					|| await handleVerifyStartInteraction(interaction);
+					|| await handleVerifyStartInteraction(interaction)
+					|| await handleEntryInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
