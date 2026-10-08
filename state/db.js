@@ -5,10 +5,10 @@ const path = require('node:path');
 // prebuild-install entirely, so every install of 13.x+ compiles from source
 // via node-gyp on every machine, needing a C/C++ toolchain this project's
 // deploy host doesn't provision. 12.11.1 still ships a prebuilt binary and
-// covers this project's Node floor (see README "Requirements"). When that
-// floor changes again, re-check better-sqlite3's GitHub releases for a
-// version whose prebuilds cover the new floor before bumping this — don't
-// assume "latest" still means "has a prebuilt binary."
+// covers this project's Node floor (see the wiki's Host Installation page).
+// When that floor changes again, re-check better-sqlite3's GitHub releases
+// for a version whose prebuilds cover the new floor before bumping this —
+// don't assume "latest" still means "has a prebuilt binary."
 const Database = require('better-sqlite3');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
