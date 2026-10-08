@@ -1,121 +1,153 @@
 const db = require('./db');
 
+// How long an announcement is remembered. Long enough that nothing can be
+// announced again: a Twitch broadcast can't run this long, and the YouTube
+// check only ever looks at videos from the last 7 days.
+const ANNOUNCEMENT_RETENTION_DAYS = 30;
+
 function mapLink(row) {
 	if (!row) return null;
 	return {
 		guildId: row.guild_id,
-		twitchUserId: row.twitch_user_id,
-		twitchLogin: row.twitch_login,
+		platform: row.platform,
+		accountId: row.account_id,
+		accountName: row.account_name,
 		userId: row.user_id,
 		manual: !!row.manual,
-		lastStreamId: row.last_stream_id,
+		addedAt: row.added_at,
 	};
 }
 
 // A member's own link (/streamers link). If an admin already added this
-// account, the member is attached to that row and its manual flag is kept —
-// self-linking never downgrades an admin-added streamer into one that needs
-// the streamer role. last_stream_id is kept too: it's the same account, so
-// it still correctly says which broadcast was already announced.
+// account, the member is attached to that row and its manual flag and
+// added_at are kept — self-linking never downgrades an admin-added streamer
+// into one that needs the streamer role, and never resets which uploads
+// count as new.
 const upsertSelfLinkStmt = db.prepare(`
-	INSERT INTO streamer_links (guild_id, twitch_user_id, twitch_login, user_id, manual)
-	VALUES (@guildId, @twitchUserId, @twitchLogin, @userId, 0)
-	ON CONFLICT(guild_id, twitch_user_id) DO UPDATE SET
-		twitch_login = excluded.twitch_login,
+	INSERT INTO streamer_links (guild_id, platform, account_id, account_name, user_id, manual, added_at)
+	VALUES (@guildId, @platform, @accountId, @accountName, @userId, 0, @addedAt)
+	ON CONFLICT(guild_id, platform, account_id) DO UPDATE SET
+		account_name = excluded.account_name,
 		user_id = excluded.user_id
 `);
 
-// A member has at most one self-link per guild, so linking a new account
-// drops their previous one. Admin-added rows are left alone: only an admin
-// removes those.
+// A member has at most one self-link per platform per guild, so linking a
+// new account drops their previous one on that platform. Admin-added rows
+// are left alone: only an admin removes those.
 const deleteOtherSelfLinksStmt = db.prepare(`
 	DELETE FROM streamer_links
-	WHERE guild_id = ? AND user_id = ? AND manual = 0 AND twitch_user_id != ?
+	WHERE guild_id = ? AND platform = ? AND user_id = ? AND manual = 0 AND account_id != ?
 `);
 
-const setSelfLink = db.transaction((guildId, userId, twitchUserId, twitchLogin) => {
-	deleteOtherSelfLinksStmt.run(guildId, userId, twitchUserId);
-	upsertSelfLinkStmt.run({ guildId, userId, twitchUserId, twitchLogin });
+const setSelfLink = db.transaction((guildId, platform, userId, accountId, accountName) => {
+	deleteOtherSelfLinksStmt.run(guildId, platform, userId, accountId);
+	upsertSelfLinkStmt.run({ guildId, platform, userId, accountId, accountName, addedAt: new Date().toISOString() });
 });
 
 // An admin's add (/streamers add). Always marks the row manual. A member is
 // optional: when given it replaces whoever the row was attached to, when
 // omitted any existing attachment is kept.
 const upsertManualStmt = db.prepare(`
-	INSERT INTO streamer_links (guild_id, twitch_user_id, twitch_login, user_id, manual)
-	VALUES (@guildId, @twitchUserId, @twitchLogin, @userId, 1)
-	ON CONFLICT(guild_id, twitch_user_id) DO UPDATE SET
-		twitch_login = excluded.twitch_login,
+	INSERT INTO streamer_links (guild_id, platform, account_id, account_name, user_id, manual, added_at)
+	VALUES (@guildId, @platform, @accountId, @accountName, @userId, 1, @addedAt)
+	ON CONFLICT(guild_id, platform, account_id) DO UPDATE SET
+		account_name = excluded.account_name,
 		user_id = COALESCE(excluded.user_id, streamer_links.user_id),
 		manual = 1
 `);
 
-function addManual(guildId, twitchUserId, twitchLogin, userId) {
-	upsertManualStmt.run({ guildId, twitchUserId, twitchLogin, userId: userId ?? null });
+function addManual(guildId, platform, accountId, accountName, userId) {
+	upsertManualStmt.run({ guildId, platform, accountId, accountName, userId: userId ?? null, addedAt: new Date().toISOString() });
 }
 
-const deleteSelfLinksStmt = db.prepare('DELETE FROM streamer_links WHERE guild_id = ? AND user_id = ? AND manual = 0');
+// /streamers unlink: the member's own links only, never an admin-added row.
+// platform is optional — omitted, it unlinks every platform.
+const deleteSelfLinksStmt = db.prepare(`
+	DELETE FROM streamer_links
+	WHERE guild_id = @guildId AND user_id = @userId AND manual = 0
+		AND (@platform IS NULL OR platform = @platform)
+`);
 
-// /streamers unlink: the member's own link only, never an admin-added row.
-function removeSelfLinks(guildId, userId) {
-	return deleteSelfLinksStmt.run(guildId, userId).changes > 0;
+function removeSelfLinks(guildId, userId, platform) {
+	return deleteSelfLinksStmt.run({ guildId, userId, platform: platform ?? null }).changes;
 }
 
 const deleteByMemberStmt = db.prepare('DELETE FROM streamer_links WHERE guild_id = ? AND user_id = ?');
 
-// /streamers remove member: every row attached to that member, self-linked
-// or admin-added.
+// /streamers remove member: every row attached to that member, on every
+// platform, self-linked or admin-added.
 function removeByMember(guildId, userId) {
 	return deleteByMemberStmt.run(guildId, userId).changes;
 }
 
-// guild_id is in the WHERE because the login comes from a free-typed string
-// option — see WorkingAgreements.md § 2. Case-insensitive because Twitch
-// logins are, and people type them however they like.
-const deleteByLoginStmt = db.prepare('DELETE FROM streamer_links WHERE guild_id = ? AND twitch_login = ? COLLATE NOCASE');
+// guild_id is in the WHERE because the account comes from a free-typed
+// string option — see WorkingAgreements.md § 2. It matches either the
+// permanent ID (what autocomplete submits) or the display name, ignoring
+// case, since people type names however they like.
+const deleteByAccountStmt = db.prepare(`
+	DELETE FROM streamer_links
+	WHERE guild_id = @guildId AND platform = @platform
+		AND (account_id = @account OR account_name = @account COLLATE NOCASE)
+`);
 
-function removeByLogin(guildId, twitchLogin) {
-	return deleteByLoginStmt.run(guildId, twitchLogin).changes > 0;
+function removeByAccount(guildId, platform, account) {
+	return deleteByAccountStmt.run({ guildId, platform, account }).changes > 0;
 }
 
-const selectLinkByTwitchStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? AND twitch_user_id = ?');
+const selectLinkStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? AND platform = ? AND account_id = ?');
 
-function getLinkByTwitch(guildId, twitchUserId) {
-	return mapLink(selectLinkByTwitchStmt.get(guildId, twitchUserId));
+function getLink(guildId, platform, accountId) {
+	return mapLink(selectLinkStmt.get(guildId, platform, accountId));
 }
 
-const selectLinksForMemberStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? AND user_id = ? ORDER BY twitch_login');
+const selectLinksForMemberStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? AND user_id = ? ORDER BY platform, account_name');
 
 function listLinksForMember(guildId, userId) {
 	return selectLinksForMemberStmt.all(guildId, userId).map(mapLink);
 }
 
-const selectLinksForGuildStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? ORDER BY twitch_login');
+const selectLinksForGuildStmt = db.prepare('SELECT * FROM streamer_links WHERE guild_id = ? ORDER BY platform, account_name');
 
 function listLinksForGuild(guildId) {
 	return selectLinksForGuildStmt.all(guildId).map(mapLink);
 }
 
-const selectAllLinksStmt = db.prepare('SELECT * FROM streamer_links ORDER BY guild_id, twitch_user_id');
+const selectLinksForPlatformStmt = db.prepare('SELECT * FROM streamer_links WHERE platform = ? ORDER BY guild_id, account_id');
 
-// Every guild at once: the poller batches one Twitch request across all of
-// them rather than one per guild — see lib/streamAlerts.js.
-function listAllLinks() {
-	return selectAllLinksStmt.all().map(mapLink);
+// Every guild at once: the poller batches requests across all of them rather
+// than one per guild — see lib/streamAlerts.js.
+function listLinksForPlatform(platform) {
+	return selectLinksForPlatformStmt.all(platform).map(mapLink);
 }
 
-const setLastStreamStmt = db.prepare('UPDATE streamer_links SET last_stream_id = ? WHERE guild_id = ? AND twitch_user_id = ?');
+// Keeps the stored name current when a streamer renames their channel, so
+// /streamers list, removal by name and alert text don't use a dead name.
+const setNameStmt = db.prepare('UPDATE streamer_links SET account_name = ? WHERE guild_id = ? AND platform = ? AND account_id = ?');
 
-function setLastStreamId(guildId, twitchUserId, streamId) {
-	setLastStreamStmt.run(streamId, guildId, twitchUserId);
+function setAccountName(guildId, platform, accountId, accountName) {
+	setNameStmt.run(accountName, guildId, platform, accountId);
 }
 
-// Keeps the stored login current when a streamer renames their Twitch account,
-// so /streamers list, removal by name and the alert link don't use a dead name.
-const setLoginStmt = db.prepare('UPDATE streamer_links SET twitch_login = ? WHERE guild_id = ? AND twitch_user_id = ?');
+const selectAnnouncedStmt = db.prepare('SELECT 1 FROM stream_announcements WHERE guild_id = ? AND platform = ? AND content_id = ? AND kind = ?');
 
-function setTwitchLogin(guildId, twitchUserId, twitchLogin) {
-	setLoginStmt.run(twitchLogin, guildId, twitchUserId);
+function isAnnounced(guildId, platform, contentId, kind) {
+	return selectAnnouncedStmt.get(guildId, platform, contentId, kind) !== undefined;
+}
+
+const insertAnnouncementStmt = db.prepare(`
+	INSERT OR IGNORE INTO stream_announcements (guild_id, platform, content_id, kind, announced_at)
+	VALUES (?, ?, ?, ?, ?)
+`);
+
+function markAnnounced(guildId, platform, contentId, kind) {
+	insertAnnouncementStmt.run(guildId, platform, contentId, kind, new Date().toISOString());
+}
+
+const pruneAnnouncementsStmt = db.prepare('DELETE FROM stream_announcements WHERE announced_at < ?');
+
+function pruneAnnouncements() {
+	const cutoff = new Date(Date.now() - (ANNOUNCEMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000)).toISOString();
+	return pruneAnnouncementsStmt.run(cutoff).changes;
 }
 
 module.exports = {
@@ -123,11 +155,13 @@ module.exports = {
 	addManual,
 	removeSelfLinks,
 	removeByMember,
-	removeByLogin,
-	getLinkByTwitch,
+	removeByAccount,
+	getLink,
 	listLinksForMember,
 	listLinksForGuild,
-	listAllLinks,
-	setLastStreamId,
-	setTwitchLogin,
+	listLinksForPlatform,
+	setAccountName,
+	isAnnounced,
+	markAnnounced,
+	pruneAnnouncements,
 };
