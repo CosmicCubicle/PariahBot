@@ -2,10 +2,11 @@ const { SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } = 
 const streamerStore = require('../state/streamers');
 const guildSettings = require('../state/guildSettings');
 const twitch = require('../lib/twitch');
-const { requireAdmin } = require('../lib/permissions');
+const { isAdmin, requireAdmin } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_LISTED = 50;
+const MAX_AUTOCOMPLETE_CHOICES = 25;
 
 function requireTwitchConfigured() {
 	if (!twitch.isConfigured()) {
@@ -13,22 +14,24 @@ function requireTwitchConfigured() {
 	}
 }
 
-// Linking is self-service, but only for members the admins have marked as
-// streamers — otherwise anyone could make the bot announce any channel.
+// Self-linking is only for members the admins have marked as streamers —
+// otherwise anyone could make the bot announce any channel. Admins who want
+// someone on the list without the role use /streamers add instead.
 function requireStreamerRole(interaction) {
 	const { streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
 	if (!streamerRoleId) {
-		throw new Error('This server has no streamer role yet — an admin needs to set one with `/setup streamer-role`.');
+		throw new Error('This server has no streamer role yet — an admin needs to set one with `/setup streamer-role`, or add you directly with `/streamers add`.');
 	}
 	if (!interaction.member.roles.cache.has(streamerRoleId)) {
-		throw new Error(`You need the <@&${streamerRoleId}> role to link a Twitch account. Ask an admin if you stream.`);
+		throw new Error(`You need the <@&${streamerRoleId}> role to link a Twitch account. Ask an admin if you stream — they can also add you with \`/streamers add\`.`);
 	}
 }
 
-async function handleLink(interaction) {
-	requireTwitchConfigured();
-	requireStreamerRole(interaction);
-
+// Shared by link and add: validates the typed username, defers (the Twitch
+// lookup is a network round trip that can outlast Discord's 3-second window),
+// and resolves it to a real account so a typo fails now instead of silently
+// never alerting.
+async function resolveTwitchAccount(interaction) {
 	const username = interaction.options.getString('twitch_username').trim().replace(/^@/, '');
 	if (!twitch.isValidLogin(username)) {
 		throw new Error(`"${username}" isn't a valid Twitch username — it should be 4–25 letters, numbers or underscores, as it appears in twitch.tv/<username>.`);
@@ -38,32 +41,72 @@ async function handleLink(interaction) {
 
 	const account = await twitch.getUserByLogin(username);
 	if (!account) {
-		throw new Error(`Couldn't find a Twitch account called "${username}". Check the spelling against your twitch.tv/<username> link.`);
+		throw new Error(`Couldn't find a Twitch account called "${username}". Check the spelling against the twitch.tv/<username> link.`);
 	}
+	return account;
+}
 
-	// The string option names a Twitch account, not a Discord entity, so the
-	// guild isolation concern is this guild's own links — checked here so the
-	// error can say who has it, instead of a bare unique-constraint failure.
-	const existing = streamerStore.getLinkByTwitch(interaction.guildId, account.id);
-	if (existing && existing.userId !== interaction.user.id) {
-		throw new Error(`twitch.tv/${account.login} is already linked by <@${existing.userId}> in this server. Ask an admin to \`/streamers remove\` it if that's wrong.`);
-	}
-
-	streamerStore.setLink(interaction.guildId, interaction.user.id, account.id, account.login);
-
-	const { streamAlertChannelId } = guildSettings.getGuildSettings(interaction.guildId);
-	const where = streamAlertChannelId
-		? `Go-live alerts will post in <#${streamAlertChannelId}>.`
+function alertChannelNote(guildId) {
+	const { streamAlertChannelId } = guildSettings.getGuildSettings(guildId);
+	return streamAlertChannelId
+		? `Go-live alerts post in <#${streamAlertChannelId}>.`
 		: "Alerts won't post until an admin picks a channel with `/streamers channel`.";
-	await interaction.editReply({ content: `Linked twitch.tv/${account.login} to your account. ${where}` });
+}
+
+async function handleLink(interaction) {
+	requireTwitchConfigured();
+	requireStreamerRole(interaction);
+
+	const account = await resolveTwitchAccount(interaction);
+
+	// The string option names a Twitch account, not a Discord entity; the
+	// conflict that matters is another member of this guild already owning it.
+	const existing = streamerStore.getLinkByTwitch(interaction.guildId, account.id);
+	if (existing?.userId && existing.userId !== interaction.user.id) {
+		throw new Error(`twitch.tv/${account.login} is already linked to <@${existing.userId}> in this server. Ask an admin to \`/streamers remove\` it if that's wrong.`);
+	}
+
+	streamerStore.setSelfLink(interaction.guildId, interaction.user.id, account.id, account.login);
+
+	const lines = [`Linked twitch.tv/${account.login} to your account. ${alertChannelNote(interaction.guildId)}`];
+	if (existing?.manual) {
+		lines.push('An admin had already added this channel, so it keeps alerting even without the streamer role.');
+	}
+	await interaction.editReply({ content: lines.join('\n') });
 }
 
 async function handleUnlink(interaction) {
-	const removed = streamerStore.removeLink(interaction.guildId, interaction.user.id);
-	await interaction.reply({
-		content: removed ? 'Unlinked your Twitch account — no more go-live alerts for you here.' : "You don't have a Twitch account linked in this server.",
-		ephemeral: true,
-	});
+	const removed = streamerStore.removeSelfLinks(interaction.guildId, interaction.user.id);
+	const adminAdded = streamerStore.listLinksForMember(interaction.guildId, interaction.user.id);
+
+	const lines = [removed
+		? 'Unlinked your Twitch account — no more go-live alerts for it here.'
+		: "You haven't linked a Twitch account yourself in this server."];
+	if (adminAdded.length) {
+		const names = adminAdded.map((link) => `twitch.tv/${link.twitchLogin}`).join(', ');
+		lines.push(`${names} was added by an admin, so it's still on the list — ask an admin to \`/streamers remove\` it.`);
+	}
+	await interaction.reply({ content: lines.join('\n'), ephemeral: true });
+}
+
+async function handleAdd(interaction) {
+	requireAdmin(interaction);
+	requireTwitchConfigured();
+
+	const member = interaction.options.getUser('member');
+	const account = await resolveTwitchAccount(interaction);
+	const existing = streamerStore.getLinkByTwitch(interaction.guildId, account.id);
+
+	streamerStore.addManual(interaction.guildId, account.id, account.login, member?.id);
+
+	const owner = member ?? (existing?.userId ? `<@${existing.userId}>` : null);
+	const lines = [
+		`Added twitch.tv/${account.login}${owner ? ` (${owner})` : ''}. It alerts whether or not anyone holds the streamer role. ${alertChannelNote(interaction.guildId)}`,
+	];
+	if (member && existing?.userId && existing.userId !== member.id) {
+		lines.push(`It was previously linked to <@${existing.userId}>; it's now attached to ${member}.`);
+	}
+	await interaction.editReply({ content: lines.join('\n') });
 }
 
 async function handleChannel(interaction) {
@@ -95,19 +138,43 @@ async function handleDisable(interaction) {
 	requireAdmin(interaction);
 	guildSettings.clearStreamAlerts(interaction.guildId);
 	await interaction.reply({
-		content: 'Go-live alerts are off. Linked accounts are kept — `/streamers channel` turns alerts back on.',
+		content: 'Go-live alerts are off. The streamer list is kept — `/streamers channel` turns alerts back on.',
 		ephemeral: true,
 	});
 }
 
+// Removes by member (everything attached to them, self-linked or admin-added)
+// or by Twitch username (the one channel, which may have no member at all).
 async function handleRemove(interaction) {
 	requireAdmin(interaction);
+
 	const user = interaction.options.getUser('member');
-	const removed = streamerStore.removeLink(interaction.guildId, user.id);
+	const login = interaction.options.getString('twitch_username')?.trim().replace(/^@/, '');
+	if (!user === !login) {
+		throw new Error('Give either a member or a Twitch username to remove — not both.');
+	}
+
+	if (user) {
+		const removed = streamerStore.removeByMember(interaction.guildId, user.id);
+		await interaction.reply({
+			content: removed ? `Removed ${user} from the streamer list.` : `${user} isn't on the streamer list.`,
+			ephemeral: true,
+		});
+		return;
+	}
+
+	const removed = streamerStore.removeByLogin(interaction.guildId, login);
 	await interaction.reply({
-		content: removed ? `Removed ${user}'s linked Twitch account.` : `${user} doesn't have a Twitch account linked here.`,
+		content: removed ? `Removed twitch.tv/${login} from the streamer list.` : `twitch.tv/${login} isn't on this server's streamer list — pick one from the suggestions.`,
 		ephemeral: true,
 	});
+}
+
+function describeLink(link) {
+	const channel = `[twitch.tv/${link.twitchLogin}](https://www.twitch.tv/${link.twitchLogin})`;
+	const owner = link.userId ? ` → <@${link.userId}>` : '';
+	const source = link.manual ? 'added by admin' : 'streamer role';
+	return `${channel}${owner} · ${source}`;
 }
 
 async function handleList(interaction) {
@@ -116,7 +183,7 @@ async function handleList(interaction) {
 	const { streamAlertChannelId, streamAlertRoleId, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
 	const links = streamerStore.listLinksForGuild(interaction.guildId);
 
-	const lines = links.slice(0, MAX_LISTED).map((link) => `<@${link.userId}> → [twitch.tv/${link.twitchLogin}](https://www.twitch.tv/${link.twitchLogin})`);
+	const lines = links.slice(0, MAX_LISTED).map(describeLink);
 	if (links.length > MAX_LISTED) lines.push(`…and ${links.length - MAX_LISTED} more.`);
 
 	const embed = new EmbedBuilder()
@@ -125,9 +192,9 @@ async function handleList(interaction) {
 		.addFields(
 			{ name: 'Alert channel', value: streamAlertChannelId ? `<#${streamAlertChannelId}>` : 'Not set — alerts are off', inline: true },
 			{ name: 'Ping role', value: streamAlertRoleId ? `<@&${streamAlertRoleId}>` : 'None', inline: true },
-			{ name: 'Streamer role', value: streamerRoleId ? `<@&${streamerRoleId}>` : 'Not set — use `/setup streamer-role`', inline: true },
+			{ name: 'Streamer role', value: streamerRoleId ? `<@&${streamerRoleId}>` : 'Not set — only admin-added channels alert', inline: true },
 		)
-		.setDescription(lines.length ? lines.join('\n') : 'No one has linked a Twitch account yet.');
+		.setDescription(lines.length ? lines.join('\n') : 'No streamers yet. Members with the streamer role can `/streamers link`, or an admin can `/streamers add`.');
 
 	await interaction.reply({ embeds: [embed], ephemeral: true });
 }
@@ -135,6 +202,7 @@ async function handleList(interaction) {
 const HANDLERS = {
 	link: handleLink,
 	unlink: handleUnlink,
+	add: handleAdd,
 	channel: handleChannel,
 	disable: handleDisable,
 	remove: handleRemove,
@@ -144,10 +212,10 @@ const HANDLERS = {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('streamers')
-		.setDescription('Twitch go-live alerts for members with the streamer role.')
+		.setDescription('Twitch go-live alerts: streamer-role members link themselves, admins can add anyone.')
 		.addSubcommand((sub) => sub
 			.setName('link')
-			.setDescription('Link your Twitch account so the server is alerted when you go live.')
+			.setDescription('Link your Twitch account so the server is alerted when you go live (needs the streamer role).')
 			.addStringOption((option) => option
 				.setName('twitch_username')
 				.setDescription('Your Twitch username, as in twitch.tv/<username>')
@@ -156,7 +224,20 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('unlink')
-			.setDescription('Stop go-live alerts for your Twitch account.'))
+			.setDescription('Stop go-live alerts for the Twitch account you linked.'))
+		.addSubcommand((sub) => sub
+			.setName('add')
+			.setDescription('(Admin) Add a Twitch channel to the alert list — no streamer role needed.')
+			.addStringOption((option) => option
+				.setName('twitch_username')
+				.setDescription('Twitch username, as in twitch.tv/<username>')
+				.setMinLength(4)
+				.setMaxLength(26)
+				.setRequired(true))
+			.addUserOption((option) => option
+				.setName('member')
+				.setDescription('Member who owns the channel (optional — leave empty for a channel outside the server)')
+				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('channel')
 			.setDescription('(Admin) Choose where go-live alerts post, and optionally a role to ping.')
@@ -171,21 +252,45 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('disable')
-			.setDescription('(Admin) Turn off go-live alerts. Linked accounts are kept.'))
+			.setDescription('(Admin) Turn off go-live alerts. The streamer list is kept.'))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription("(Admin) Remove a member's linked Twitch account.")
+			.setDescription('(Admin) Remove a streamer by member or by Twitch username.')
 			.addUserOption((option) => option
 				.setName('member')
-				.setDescription('Member whose link to remove')
-				.setRequired(true)))
+				.setDescription('Remove everything attached to this member')
+				.setRequired(false))
+			.addStringOption((option) => option
+				.setName('twitch_username')
+				.setDescription('Remove this Twitch channel')
+				.setAutocomplete(true)
+				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription('(Admin) Show the alert settings and every linked account.')),
+			.setDescription('(Admin) Show the alert settings and every streamer on the list.')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		const handler = HANDLERS[subcommand];
 		if (!handler) throw new Error(`Unknown /streamers subcommand: ${subcommand}`);
 		await handler(interaction);
+	},
+	// Suggestions for /streamers remove twitch_username — this guild's list
+	// only, and only for admins (non-admins get none rather than seeing the
+	// list). Not a security boundary on its own (a typed value needn't come
+	// from here), which is why removeByLogin also scopes by guild_id.
+	async autocomplete(interaction) {
+		if (!isAdmin(interaction.member, interaction.guildId)) {
+			await interaction.respond([]);
+			return;
+		}
+		const typed = interaction.options.getFocused().toLowerCase();
+		const choices = streamerStore.listLinksForGuild(interaction.guildId)
+			.filter((link) => link.twitchLogin.toLowerCase().includes(typed))
+			.slice(0, MAX_AUTOCOMPLETE_CHOICES)
+			.map((link) => ({
+				name: `twitch.tv/${link.twitchLogin}${link.manual ? ' (added by admin)' : ''}`,
+				value: link.twitchLogin,
+			}));
+		await interaction.respond(choices);
 	},
 };

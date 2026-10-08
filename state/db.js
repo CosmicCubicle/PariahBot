@@ -112,8 +112,13 @@ db.exec(`
 		status TEXT NOT NULL DEFAULT 'active'
 	);
 
-	-- One Twitch account per member per guild, linked by the member themselves
-	-- via /streamers link (only while they hold the guild's streamer role).
+	-- Twitch accounts a guild gets go-live alerts for, one row per account.
+	-- Two ways in, told apart by manual:
+	--   0 = self-linked by a member via /streamers link; alerts only while
+	--       user_id still holds the guild's streamer role.
+	--   1 = added by an admin via /streamers add; alerts regardless of roles.
+	--       user_id is optional here — it can be a channel with no member in
+	--       the server at all.
 	-- twitch_user_id, not the login, is what's polled: logins can be renamed,
 	-- user IDs can't. last_stream_id is the Twitch stream (one per broadcast)
 	-- most recently announced — stored rather than kept in memory so a restart
@@ -121,12 +126,12 @@ db.exec(`
 	-- lib/streamAlerts.js.
 	CREATE TABLE IF NOT EXISTS streamer_links (
 		guild_id       TEXT NOT NULL,
-		user_id        TEXT NOT NULL,
 		twitch_user_id TEXT NOT NULL,
 		twitch_login   TEXT NOT NULL,
+		user_id        TEXT,
+		manual         INTEGER NOT NULL DEFAULT 0,
 		last_stream_id TEXT,
-		PRIMARY KEY (guild_id, user_id),
-		UNIQUE (guild_id, twitch_user_id)
+		PRIMARY KEY (guild_id, twitch_user_id)
 	);
 
 	CREATE TABLE IF NOT EXISTS giveaway_entries (

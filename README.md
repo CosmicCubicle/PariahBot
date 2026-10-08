@@ -19,7 +19,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
-- **Twitch go-live alerts** — members with the streamer role link their Twitch account, and the bot posts an alert (optionally pinging a role) when they go live. Needs Twitch API credentials in `hom.env`.
+- **Twitch go-live alerts** — members with the streamer role link their own Twitch account, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role, when any of them goes live. Needs Twitch API credentials in `hom.env`.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
@@ -75,7 +75,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
-| `/streamers` | Twitch go-live alerts. Members with the streamer role: `link`, `unlink`. (Admin): `channel`, `disable`, `remove`, `list`. |
+| `/streamers` | Twitch go-live alerts. Members with the streamer role: `link`, `unlink`. (Admin): `add`, `channel`, `disable`, `remove`, `list`. |
 | `/giveaway` | (Admin) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:

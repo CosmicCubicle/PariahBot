@@ -95,5 +95,8 @@ description should say so.
 
 - Streamer alerts support Twitch only. A second platform (YouTube, Kick)
   would add a `platform` column to `streamer_links`, not a new table.
+- The streamer list has two sources that work side by side: members with the
+  streamer role self-link, and admins add channels directly. Admin-added
+  channels alert regardless of roles, and don't need a member in the server.
 - Code that doesn't meet the standards yet is listed in
   [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).
