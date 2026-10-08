@@ -18,9 +18,16 @@ several single-purpose bots with one:
 - anti-spam (captcha and honeypot)
 - giveaways
 - activity levels
+- Twitch go-live alerts
 - admin alerts
 
 Slash commands are loaded automatically from `commands/`.
+
+The bot only calls one outside service: Twitch's API, for go-live alerts.
+That feature is optional and stays off unless the host sets Twitch
+credentials. It polls Twitch every minute rather than using Twitch's
+push notifications (EventSub), because those need a public HTTPS address
+that a self-hosted bot usually doesn't have.
 
 Several features are modeled on existing open-source bots, and the
 differences from them are deliberate. See [References.md](References.md).
@@ -86,7 +93,7 @@ description should say so.
 
 ## 7. Open items
 
-- `guild_settings.streamer_role_id` is set by `/setup streamer-role`, but
-  nothing uses it yet. It's stored for a planned feature.
+- Streamer alerts support Twitch only. A second platform (YouTube, Kick)
+  would add a `platform` column to `streamer_links`, not a new table.
 - Code that doesn't meet the standards yet is listed in
   [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).

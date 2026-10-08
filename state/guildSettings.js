@@ -63,6 +63,8 @@ function getGuildSettings(guildId) {
 		screeningMessageId: row?.screening_message_id ?? null,
 		honeypotChannelId: row?.honeypot_channel_id ?? null,
 		honeypotAction: row?.honeypot_action ?? 'kick',
+		streamAlertChannelId: row?.stream_alert_channel_id ?? null,
+		streamAlertRoleId: row?.stream_alert_role_id ?? null,
 	};
 }
 
@@ -162,7 +164,9 @@ function clearMemberRole(guildId) {
 	upsertMemberRoleStmt.run({ guildId, roleId: null });
 }
 
-// No consumer yet — set via /setup streamer-role and stored for future use.
+// Set via /setup streamer-role. Holding it is what lets a member link a Twitch
+// account with /streamers link, and what keeps their go-live alerts posting —
+// checked live on every alert, see lib/streamAlerts.js.
 const upsertStreamerRoleStmt = db.prepare(`
 	INSERT INTO guild_settings (guild_id, streamer_role_id)
 	VALUES (@guildId, @roleId)
@@ -218,6 +222,25 @@ function clearHoneypot(guildId) {
 	clearHoneypotStmt.run(guildId);
 }
 
+// Where /streamers go-live alerts post, and the optional role they ping — see
+// lib/streamAlerts.js. Both are cleared together by /streamers disable; a null
+// stream_alert_channel_id is what "stream alerts are off" means.
+const upsertStreamAlertsStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, stream_alert_channel_id, stream_alert_role_id)
+	VALUES (@guildId, @channelId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		stream_alert_channel_id = excluded.stream_alert_channel_id,
+		stream_alert_role_id = excluded.stream_alert_role_id
+`);
+
+function setStreamAlerts(guildId, channelId, roleId) {
+	upsertStreamAlertsStmt.run({ guildId, channelId, roleId: roleId ?? null });
+}
+
+function clearStreamAlerts(guildId) {
+	upsertStreamAlertsStmt.run({ guildId, channelId: null, roleId: null });
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -242,4 +265,6 @@ module.exports = {
 	clearScreening,
 	setHoneypot,
 	clearHoneypot,
+	setStreamAlerts,
+	clearStreamAlerts,
 };

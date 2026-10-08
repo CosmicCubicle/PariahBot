@@ -112,6 +112,23 @@ db.exec(`
 		status TEXT NOT NULL DEFAULT 'active'
 	);
 
+	-- One Twitch account per member per guild, linked by the member themselves
+	-- via /streamers link (only while they hold the guild's streamer role).
+	-- twitch_user_id, not the login, is what's polled: logins can be renamed,
+	-- user IDs can't. last_stream_id is the Twitch stream (one per broadcast)
+	-- most recently announced — stored rather than kept in memory so a restart
+	-- mid-stream doesn't announce the same broadcast twice. See
+	-- lib/streamAlerts.js.
+	CREATE TABLE IF NOT EXISTS streamer_links (
+		guild_id       TEXT NOT NULL,
+		user_id        TEXT NOT NULL,
+		twitch_user_id TEXT NOT NULL,
+		twitch_login   TEXT NOT NULL,
+		last_stream_id TEXT,
+		PRIMARY KEY (guild_id, user_id),
+		UNIQUE (guild_id, twitch_user_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id TEXT NOT NULL,
@@ -183,6 +200,16 @@ if (!hasColumn('guild_settings', 'honeypot_channel_id')) {
 }
 if (!hasColumn('guild_settings', 'honeypot_action')) {
 	db.exec("ALTER TABLE guild_settings ADD COLUMN honeypot_action TEXT NOT NULL DEFAULT 'kick'");
+}
+
+// /streamers go-live alerts. Same "a set channel *is* on" convention as the
+// captcha above: a null stream_alert_channel_id means alerts are off.
+// stream_alert_role_id is the optional role pinged with each alert.
+if (!hasColumn('guild_settings', 'stream_alert_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'stream_alert_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_role_id TEXT');
 }
 
 // Installs that already had role_menus/role_menu_options from before the

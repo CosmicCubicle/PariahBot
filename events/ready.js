@@ -5,6 +5,7 @@ const { checkAndNotifyDeadHubs } = require('../lib/hubDesync');
 const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
 const { scheduleActiveGiveaways } = require('../lib/giveaways');
+const { startPoller: startStreamAlerts } = require('../lib/streamAlerts');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -33,5 +34,6 @@ module.exports = {
 		await autoDelete.seedAll(client, autoDeleteStore.listAllChannels());
 		autoDelete.startSweepTimer();
 		scheduleActiveGiveaways(client);
+		startStreamAlerts(client);
 	},
 };
