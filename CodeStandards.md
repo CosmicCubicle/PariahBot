@@ -324,6 +324,29 @@ verification is manual. The PR description must say what was checked.
 
 ## 14. Git and pull requests
 
+- **Every piece of work starts with a GitHub issue.** Open one first if it
+  doesn't exist yet.
+- **Branch names follow `<type>_Issue<N>_<description>`:**
+  - `<type>` is `feature` (new behavior), `fix` (a bug) or `maintain` (docs,
+    dependencies, tooling, refactors).
+  - `<N>` is the open issue the work is for.
+  - `<description>` is a few words joined with hyphens. Git doesn't allow
+    spaces.
+
+  For example: `feature_Issue17_streamer-alerts`, `fix_Issue12_slash-ban-perms`,
+  `maintain_Issue26_require-linked-issues`.
+
+  GitHub enforces this in two places:
+  - The `BranchNamingConvention` ruleset refuses to create a branch with any
+    other name.
+  - The required **Linked issue** check (in
+    [.github/workflows/linked-issue.yml](.github/workflows/linked-issue.yml))
+    fails a PR whose branch doesn't name an existing, open issue.
+- **PRs link to their issue automatically.** The Linked issue check adds
+  `Closes #N` to the PR description if it isn't already there, which puts the
+  issue in the PR's Development panel and closes it on merge. It also posts a
+  comment on the issue linking back to the PR. Every PR closes its issue when
+  merged, so if the work needs several PRs, split it into several issues.
 - Branch from `main` and open a PR. Changes are **squash-merged**, so the PR
   title becomes the commit subject (`... (#N)`).
 - [CODEOWNERS](.github/CODEOWNERS) review is required.
