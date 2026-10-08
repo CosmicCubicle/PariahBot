@@ -92,6 +92,9 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `logging/` | Command audit logging. |
 | `deploy/` | Host setup script. |
 
-See **[CLAUDE.md](CLAUDE.md)** for the conventions to follow when adding to any
-of these — state handling, guild isolation, and the invariants around the
-destructive code paths.
+Before contributing, read:
+
+- **[ProjectContext.md](ProjectContext.md)**: what the bot is, its constraints, and past decisions
+- **[WorkingAgreements.md](WorkingAgreements.md)**: the hard rules (state, guild isolation, destructive actions)
+- **[CodeStandards.md](CodeStandards.md)**: how code is written, verified and shipped
+- **[Team.md](Team.md)** and **[References.md](References.md)**: who's involved, and where to look
