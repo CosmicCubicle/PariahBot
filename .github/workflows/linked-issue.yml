@@ -1,0 +1,87 @@
+name: Linked issue
+
+# Enforces the branch policy in CodeStandards.md § 14: every PR's branch is
+# named <feature|fix|maintain>_Issue<N>_<description>, and issue N must exist
+# and be open. Then it links the two both ways: `Closes #N` in the PR body
+# (which is what puts the issue in the PR's Development panel) and a comment
+# on the issue pointing back at the PR.
+#
+# pull_request_target rather than pull_request: this runs the workflow as it
+# exists on main, so a PR can't edit this file to wave itself through, and the
+# token can still write to PRs opened from forks. That's only safe because
+# nothing here checks out or runs the PR's code — keep it that way.
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  linked-issue:
+    # This name is the required status check in the MainProtected ruleset —
+    # renaming it means updating the ruleset too, or every PR is blocked.
+    name: Linked issue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const BRANCH_PATTERN = /^(feature|fix|maintain)_Issue(\d+)_[A-Za-z0-9][A-Za-z0-9-]*$/;
+            const COMMENT_MARKER = (prNumber) => `<!-- linked-issue-pr:${prNumber} -->`;
+
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const { owner, repo } = context.repo;
+
+            const match = BRANCH_PATTERN.exec(branch);
+            if (!match) {
+              core.setFailed(
+                `Branch "${branch}" doesn't follow the naming policy. `
+                + 'Use <feature|fix|maintain>_Issue<N>_<description>, for example '
+                + 'fix_Issue12_slash-ban-perms, where #N is an open issue. '
+                + 'See CodeStandards.md § 14.',
+              );
+              return;
+            }
+            const issueNumber = Number(match[2]);
+
+            // The issues API also returns PRs, so "#N exists" isn't enough on its own.
+            const issue = await github.rest.issues.get({ owner, repo, issue_number: issueNumber })
+              .then((res) => res.data)
+              .catch(() => null);
+            if (!issue || issue.pull_request) {
+              core.setFailed(`Branch "${branch}" names #${issueNumber}, which isn't an issue in ${owner}/${repo}. Create the issue first, then name the branch after it.`);
+              return;
+            }
+            if (issue.state !== 'open') {
+              core.setFailed(`Issue #${issueNumber} is closed. Reopen it, or open a new issue for this work and rename the branch.`);
+              return;
+            }
+
+            // Any closing keyword already pointing at this issue counts; only
+            // append one when the author didn't write it themselves.
+            const body = pr.body ?? '';
+            const closingRef = new RegExp(`\\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\\s+#${issueNumber}\\b`, 'i');
+            if (!closingRef.test(body)) {
+              await github.rest.pulls.update({
+                owner, repo, pull_number: pr.number,
+                body: `${body.trimEnd()}\n\nCloses #${issueNumber}`.trimStart(),
+              });
+              core.info(`Added "Closes #${issueNumber}" to the PR description.`);
+            }
+
+            // Runs on every edit/push, so look for our own earlier comment
+            // before posting — one link per PR, not one per commit.
+            const marker = COMMENT_MARKER(pr.number);
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 });
+            if (!comments.some((comment) => comment.body?.includes(marker))) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: `${marker}\n🔗 Pull request #${pr.number} was opened for this issue: ${pr.html_url}\n\n**${pr.title}** (branch \`${branch}\`)`,
+              });
+              core.info(`Linked PR #${pr.number} on issue #${issueNumber}.`);
+            }
