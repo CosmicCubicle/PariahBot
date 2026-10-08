@@ -92,9 +92,66 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `logging/` | Command audit logging. |
 | `deploy/` | Host setup script. |
 
-Before contributing, read:
+## Contributing
 
-- **[ProjectContext.md](ProjectContext.md)**: what the bot is, its constraints, and past decisions
-- **[WorkingAgreements.md](WorkingAgreements.md)**: the hard rules (state, guild isolation, destructive actions)
-- **[CodeStandards.md](CodeStandards.md)**: how code is written, verified and shipped
-- **[Team.md](Team.md)** and **[References.md](References.md)**: who's involved, and where to look
+Contributions are welcome, from people and from AI tools alike. The same
+rules apply to both.
+
+### Read first
+
+| File | What it covers |
+| --- | --- |
+| [WorkingAgreements.md](WorkingAgreements.md) | The hard rules: state lives in SQLite, every lookup stays scoped to its server, and the safeguards on banning and kicking. These override everything else. |
+| [CodeStandards.md](CodeStandards.md) | How code is written, structured, verified and shipped. |
+| [ProjectContext.md](ProjectContext.md) | What the bot is, the constraints it runs under, and past decisions. |
+| [Team.md](Team.md) · [References.md](References.md) | Who maintains the repo, and which existing files to copy from. |
+
+AI tools pick these up through [AGENTS.md](AGENTS.md).
+
+### Workflow
+
+1. **Open an issue** describing the work, or pick an existing open one.
+   Every branch and PR has to trace back to an issue.
+2. **Create a branch** from `main` named `<type>_Issue<N>_<description>`:
+
+   | Type | Use for |
+   | --- | --- |
+   | `feature` | New behaviour |
+   | `fix` | A bug |
+   | `maintain` | Docs, dependencies, tooling, refactors |
+
+   `<N>` is the issue number, and `<description>` is a few words joined with
+   hyphens (Git doesn't allow spaces). For example:
+   `feature_Issue17_streamer-alerts`.
+
+   GitHub refuses to create a branch with any other name.
+3. **Make the change, following the standards above.**
+   - There's no automated test suite, so check your change against a real
+     Discord server (see CodeStandards.md § 13).
+   - Update the README command table, the wiki and `.env.example` if what
+     you changed affects them.
+4. **Open a PR into `main`.** Linking is automatic:
+   - `Closes #N` is added to the description, so the issue appears in the
+     PR's Development panel and closes when the PR merges.
+   - A comment linking to the PR is posted on the issue.
+
+   If the work needs several PRs, split it into several issues.
+5. **Describe the change in the PR:** why it was needed, what changed, how
+   you verified it, and anything you deliberately left out.
+
+### Merge requirements
+
+A PR can merge into `main` only when all of these pass:
+
+- **Linked issue check:** the branch name follows the format and names an
+  existing, open issue.
+- **Code owner review:** one approval from a
+  [code owner](.github/CODEOWNERS), with every review thread resolved.
+- **CodeQL:** no code-scanning errors, and no security alerts rated high or
+  above.
+
+PRs are **squash-merged**, so the PR title becomes the commit message on
+`main`. Write it in the imperative ("Add …", "Fix …").
+
+Full details are in
+[CodeStandards.md § 14](CodeStandards.md#14-git-and-pull-requests).
