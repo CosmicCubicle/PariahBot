@@ -267,6 +267,8 @@ can only set a permission bit it already holds (see
   - `0x57f287` (green): success
   - `0xed4245` (red): warnings, alerts, failures
   - `0xf1c40f` (yellow): giveaways
+  - `0x9146ff` (Twitch purple): Twitch alerts
+  - `0xff0033` (YouTube red): YouTube alerts
 - Discord's limits are real and they throw when exceeded: embed field names
   ≤ 256 characters, values ≤ 1024, ≤ 25 select-menu options. Put
   growing content in field *values*, and check counts before adding.

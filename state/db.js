@@ -112,6 +112,47 @@ db.exec(`
 		status TEXT NOT NULL DEFAULT 'active'
 	);
 
+	-- Streaming accounts a guild gets alerts for, one row per account.
+	-- platform is 'twitch' or 'youtube'. account_id is the platform's
+	-- permanent ID (Twitch user ID, YouTube UC... channel ID) — that's what's
+	-- polled, since display names and handles can be renamed. account_name is
+	-- only for showing and for removal by name, and is refreshed when it
+	-- changes.
+	-- Two ways in, told apart by manual:
+	--   0 = self-linked by a member via /streamers link; alerts only while
+	--       user_id still holds the guild's streamer role.
+	--   1 = added by an admin via /streamers add; alerts regardless of roles.
+	--       user_id is optional here — it can be a channel with no member in
+	--       the server at all.
+	-- added_at stops a newly added YouTube channel announcing its back
+	-- catalogue: only uploads published after it count.
+	CREATE TABLE IF NOT EXISTS streamer_links (
+		guild_id     TEXT NOT NULL,
+		platform     TEXT NOT NULL,
+		account_id   TEXT NOT NULL,
+		account_name TEXT NOT NULL,
+		user_id      TEXT,
+		manual       INTEGER NOT NULL DEFAULT 0,
+		added_at     TEXT NOT NULL,
+		PRIMARY KEY (guild_id, platform, account_id)
+	);
+
+	-- Every alert already posted, so nothing is announced twice — including
+	-- across a restart mid-stream. content_id is the Twitch stream ID (one per
+	-- broadcast) or the YouTube video ID; kind is 'live' or 'upload', so the
+	-- two alert types are tracked separately. Rows older than 30 days are pruned by the
+	-- poller: nothing that old can come back round (Twitch broadcasts end,
+	-- and the YouTube check only looks at the last 7 days of videos). See
+	-- lib/streamAlerts.js.
+	CREATE TABLE IF NOT EXISTS stream_announcements (
+		guild_id     TEXT NOT NULL,
+		platform     TEXT NOT NULL,
+		content_id   TEXT NOT NULL,
+		kind         TEXT NOT NULL,
+		announced_at TEXT NOT NULL,
+		PRIMARY KEY (guild_id, platform, content_id, kind)
+	);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id TEXT NOT NULL,
@@ -183,6 +224,16 @@ if (!hasColumn('guild_settings', 'honeypot_channel_id')) {
 }
 if (!hasColumn('guild_settings', 'honeypot_action')) {
 	db.exec("ALTER TABLE guild_settings ADD COLUMN honeypot_action TEXT NOT NULL DEFAULT 'kick'");
+}
+
+// /streamers go-live alerts. Same "a set channel *is* on" convention as the
+// captcha above: a null stream_alert_channel_id means alerts are off.
+// stream_alert_role_id is the optional role pinged with each alert.
+if (!hasColumn('guild_settings', 'stream_alert_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'stream_alert_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_role_id TEXT');
 }
 
 // Installs that already had role_menus/role_menu_options from before the

@@ -18,9 +18,25 @@ several single-purpose bots with one:
 - anti-spam (captcha and honeypot)
 - giveaways
 - activity levels
+- Twitch and YouTube alerts
 - admin alerts
 
 Slash commands are loaded automatically from `commands/`.
+
+The only outside services the bot calls are Twitch's and YouTube's APIs, for
+stream and upload alerts. Each platform is optional and stays off unless the
+host sets its credentials.
+
+- **Both are polled** (Twitch every minute, YouTube every two minutes)
+  rather than using push notifications (Twitch EventSub, YouTube
+  PubSubHubbub). Push needs a public HTTPS address, which a self-hosted bot
+  usually doesn't have.
+- **YouTube's API has a daily quota** (10,000 units by default), so it's used
+  sparingly. Each channel's free RSS feed finds recent videos, and one cheap
+  `videos.list` call per 50 videos says which are live. Searching for live
+  streams directly costs 100 units per call, which would use up the quota
+  with a handful of channels. The current approach handles roughly 100
+  followed channels per bot.
 
 Several features are modeled on existing open-source bots, and the
 differences from them are deliberate. See [References.md](References.md).
@@ -86,7 +102,17 @@ description should say so.
 
 ## 7. Open items
 
-- `guild_settings.streamer_role_id` is set by `/setup streamer-role`, but
-  nothing uses it yet. It's stored for a planned feature.
+- Streamer alerts support Twitch (live) and YouTube (live and uploads). A
+  third platform, such as Kick, needs:
+  - an entry in `PLATFORMS` in `commands/streamers.js`
+  - an API client in `lib/`
+  - a poller in `lib/streamAlerts.js`
+  
+  `streamer_links` and `stream_announcements` are already keyed by platform.
+- The streamer list has two sources that work side by side: members with the
+  streamer role self-link, and admins add channels directly. Admin-added
+  channels alert regardless of roles, and don't need a member in the server.
+- Every YouTube upload is announced, including Shorts. There's no per-channel
+  or per-kind filter yet, and uploads go to the same channel as live alerts.
 - Code that doesn't meet the standards yet is listed in
   [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).

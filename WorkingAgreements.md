@@ -52,6 +52,21 @@ SQLite, in [state/autoDeleteChannels.js](state/autoDeleteChannels.js).
 of truth and the data is cheap to rebuild. Everything else goes in SQLite.
 Any new exception has to be added here, with its reasoning.
 
+### The Twitch app token
+
+[lib/twitch.js](lib/twitch.js) keeps its Twitch API access token in a
+module-level variable.
+
+**Why:** it's a credential Twitch issues on demand, so a restart just
+requests a fresh one. Saving it would mean writing a live secret into the
+database file, where anyone who can read the file could use it. Who has
+already been announced (`last_stream_id`) is real state, so it *is* stored,
+in `streamer_links`.
+
+**How to apply:** this covers short-lived credentials that the issuing
+service can always replace. It doesn't cover anything the bot itself
+decides or would need to remember.
+
 > `lib/captcha.js` currently also keeps a module-level `Map`
 > (`pendingChallenges`). It isn't recorded as an exception yet. See
 > [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).
