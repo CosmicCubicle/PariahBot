@@ -144,3 +144,25 @@ A user with closed DMs is normal, so a failed DM must not block the removal.
 
 **How to apply:** send the DM first, wrap it in `.catch(() => null)`, and
 then remove the user.
+
+## 5. Never publish a real bot instance
+
+Never put an invite link, application (client) ID or token for a **real,
+running PariahBot instance** anywhere on GitHub. That covers repo files,
+commit messages, the wiki, issues, pull requests, and comments.
+
+**Why:** PariahBot is self-hosted, and the maintainers' own instances are
+private. A published invite link lets anyone add that instance to their own
+server, where it would run on the maintainer's host, database and API quota.
+GitHub also keeps old versions: once a link is pushed, removing it from the
+current file isn't enough, because it stays in the history (including the
+wiki's page history).
+
+**How to apply:**
+- Docs and examples always use the placeholder `YOUR_APPLICATION_ID`.
+- Sharing a real link privately, in Discord or in a terminal session, is
+  fine. Just don't paste it into anything that gets pushed.
+- When writing docs, PRs or issues about invites or permissions, check the
+  text for a real application ID (a 17–20 digit number) before pushing.
+- If one is pushed by mistake, tell a maintainer rather than just deleting
+  it. Getting it out of the history needs a rewrite, which is their call.
