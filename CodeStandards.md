@@ -5,7 +5,8 @@ conventions the existing code already follows. Where a rule exists because
 something broke in production, the reason is given so the rule isn't
 "simplified" away later.
 
-The hard rules (state, guild isolation, destructive actions) are in
+The hard rules (state, guild isolation, destructive actions, never publishing
+a real bot instance) are in
 [WorkingAgreements.md](WorkingAgreements.md). If the two ever disagree, WorkingAgreements.md wins and
 this file should be fixed.
 

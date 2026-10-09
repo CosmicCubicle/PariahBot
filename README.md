@@ -104,7 +104,7 @@ rules apply to both.
 
 | File | What it covers |
 | --- | --- |
-| [WorkingAgreements.md](WorkingAgreements.md) | The hard rules: state lives in SQLite, every lookup stays scoped to its server, and the safeguards on banning and kicking. These override everything else. |
+| [WorkingAgreements.md](WorkingAgreements.md) | The hard rules: state lives in SQLite, every lookup stays scoped to its server, the safeguards on banning and kicking, and never publishing a real bot instance's invite link. These override everything else. |
 | [CodeStandards.md](CodeStandards.md) | How code is written, structured, verified and shipped. |
 | [ProjectContext.md](ProjectContext.md) | What the bot is, the constraints it runs under, and past decisions. |
 | [Team.md](Team.md) · [References.md](References.md) | Who maintains the repo, and which existing files to copy from. |
