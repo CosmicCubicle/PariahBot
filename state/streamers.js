@@ -1,8 +1,10 @@
 const db = require('./db');
 
-// How long an announcement is remembered. Long enough that nothing can be
-// announced again: a Twitch broadcast can't run this long, and the YouTube
-// check only ever looks at videos from the last 7 days.
+// How long an announcement is remembered after it was last seen. Uploads are
+// only seen once, and the feed check only looks at videos from the last 7
+// days, so they can't come round again. Live items are re-seen every poll
+// while they're still live (see touchAnnouncement), so even a stream that
+// runs for months stays remembered until 30 days after it ends.
 const ANNOUNCEMENT_RETENTION_DAYS = 30;
 
 function mapLink(row) {
@@ -135,15 +137,27 @@ function isAnnounced(guildId, platform, contentId, kind) {
 }
 
 const insertAnnouncementStmt = db.prepare(`
-	INSERT OR IGNORE INTO stream_announcements (guild_id, platform, content_id, kind, announced_at)
-	VALUES (?, ?, ?, ?, ?)
+	INSERT OR IGNORE INTO stream_announcements (guild_id, platform, content_id, kind, announced_at, last_seen_at)
+	VALUES (@guildId, @platform, @contentId, @kind, @now, @now)
 `);
 
 function markAnnounced(guildId, platform, contentId, kind) {
-	insertAnnouncementStmt.run(guildId, platform, contentId, kind, new Date().toISOString());
+	insertAnnouncementStmt.run({ guildId, platform, contentId, kind, now: new Date().toISOString() });
 }
 
-const pruneAnnouncementsStmt = db.prepare('DELETE FROM stream_announcements WHERE announced_at < ?');
+const touchAnnouncementStmt = db.prepare(`
+	UPDATE stream_announcements SET last_seen_at = ?
+	WHERE guild_id = ? AND platform = ? AND content_id = ? AND kind = ?
+`);
+
+// Called whenever a poll sees something it has already announced — a stream
+// that's still live. Keeps the record from being pruned mid-stream.
+function touchAnnouncement(guildId, platform, contentId, kind) {
+	touchAnnouncementStmt.run(new Date().toISOString(), guildId, platform, contentId, kind);
+}
+
+// COALESCE covers rows written before last_seen_at existed.
+const pruneAnnouncementsStmt = db.prepare('DELETE FROM stream_announcements WHERE COALESCE(last_seen_at, announced_at) < ?');
 
 function pruneAnnouncements() {
 	const cutoff = new Date(Date.now() - (ANNOUNCEMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000)).toISOString();
@@ -163,5 +177,6 @@ module.exports = {
 	setAccountName,
 	isAnnounced,
 	markAnnounced,
+	touchAnnouncement,
 	pruneAnnouncements,
 };

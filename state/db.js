@@ -140,9 +140,9 @@ db.exec(`
 	-- Every alert already posted, so nothing is announced twice — including
 	-- across a restart mid-stream. content_id is the Twitch stream ID (one per
 	-- broadcast) or the YouTube video ID; kind is 'live' or 'upload', so the
-	-- two alert types are tracked separately. Rows older than 30 days are pruned by the
-	-- poller: nothing that old can come back round (Twitch broadcasts end,
-	-- and the YouTube check only looks at the last 7 days of videos). See
+	-- two alert types are tracked separately. Rows are pruned once nothing has
+	-- seen them for 30 days (last_seen_at, added below) — not 30 days after
+	-- announcing, or a 24/7 stream would be re-announced every month. See
 	-- lib/streamAlerts.js.
 	CREATE TABLE IF NOT EXISTS stream_announcements (
 		guild_id     TEXT NOT NULL,
@@ -234,6 +234,14 @@ if (!hasColumn('guild_settings', 'stream_alert_channel_id')) {
 }
 if (!hasColumn('guild_settings', 'stream_alert_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_role_id TEXT');
+}
+
+// When a live item was last confirmed still live — refreshed on every poll
+// that sees it, so a long-running stream's announcement isn't pruned (and
+// then re-announced) while it's still going. Null on rows from before this
+// column existed; pruning falls back to announced_at for those.
+if (!hasColumn('stream_announcements', 'last_seen_at')) {
+	db.exec('ALTER TABLE stream_announcements ADD COLUMN last_seen_at TEXT');
 }
 
 // Installs that already had role_menus/role_menu_options from before the

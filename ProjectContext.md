@@ -37,6 +37,22 @@ host sets its credentials.
   streams directly costs 100 units per call, which would use up the quota
   with a handful of channels. The current approach handles roughly 100
   followed channels per bot.
+- **The feed can't see every live stream.** It only holds a channel's 15
+  newest videos, and only the last 7 days are checked, so 24/7 or
+  long-running streams, and streams buried under newer uploads, are
+  invisible to it. A second, slower check (every 15 minutes) reads each
+  channel's `/live` page, which points at whatever it's streaming now,
+  however old. The result is confirmed through the API before anything is
+  announced. The trade-offs:
+  - **Bandwidth:** it's an ordinary web page of about 1.3 MB. Reading stops
+    once the needed link appears, so roughly 150–200 KB is transferred per
+    channel per check.
+  - **Fragility:** it isn't an official API. If YouTube changes the page,
+    this check quietly finds nothing and alerts fall back to what the feed
+    can see.
+- **Announcement records are kept until 30 days after a stream was last
+  seen**, not 30 days after it was announced. Otherwise a stream running
+  longer than a month would be announced again.
 
 Several features are modeled on existing open-source bots, and the
 differences from them are deliberate. See [References.md](References.md).
