@@ -36,7 +36,18 @@ side files drift from the database.
   variables. This rule is about anything that has to persist or be looked up
   later.
 
-### The one in-memory exception
+### Recorded in-memory exceptions
+
+Three things are deliberately kept in memory, each for its own reason:
+
+- the auto-delete message cache
+- the Twitch access token
+- pending captcha answers
+
+They are the only exceptions. Any new one has to be added here, with its
+reasoning, before it's merged.
+
+### The auto-delete message cache
 
 [lib/autoDelete.js](lib/autoDelete.js) keeps its list of live messages per
 channel in a module-level `Map`. This is deliberate.
@@ -50,7 +61,6 @@ SQLite, in [state/autoDeleteChannels.js](state/autoDeleteChannels.js).
 
 **How to apply:** use this pattern only when Discord is genuinely the source
 of truth and the data is cheap to rebuild. Everything else goes in SQLite.
-Any new exception has to be added here, with its reasoning.
 
 ### The Twitch app token
 
@@ -67,9 +77,22 @@ in `streamer_links`.
 service can always replace. It doesn't cover anything the bot itself
 decides or would need to remember.
 
-> `lib/captcha.js` currently also keeps a module-level `Map`
-> (`pendingChallenges`). It isn't recorded as an exception yet. See
-> [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).
+### Pending captcha answers
+
+[lib/captcha.js](lib/captcha.js) keeps each member's pending challenge
+answer in a module-level `Map` (`pendingChallenges`), for up to 5 minutes.
+
+**Why:**
+- **The answer has to stay on the server.** Putting it in the select menu's
+  `customId` would send it to the member's client, where a bot could read it.
+- **It's short-lived and cheap to rebuild.** If the bot restarts mid-challenge,
+  the member just presses *Start verification* again.
+- **Storing it would only leave rows behind.** Abandoned challenges would
+  never be cleaned up.
+
+**How to apply:** this covers per-interaction secrets that expire within
+minutes, where losing them on a restart costs one click. It doesn't cover
+anything a member or admin would expect to survive a restart.
 
 ## 2. Stay scoped to the invoking guild
 

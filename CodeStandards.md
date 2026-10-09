@@ -368,23 +368,10 @@ verification is manual. The PR description must say what was checked.
 
 ## 15. Known deviations in current code
 
-These parts of the codebase don't yet meet the standards above. Don't copy
-them into new code. Fix them when you're next working in that area.
+Code that doesn't meet the standards above, and why. Don't copy it into new
+code. If you find more, add it here, and fix it when you're next working in
+that area.
 
-- **`state/giveaways.js`** returns raw `snake_case` rows, and its statements
-  lack the `Stmt` suffix. As a result, `lib/giveaways.js` and
-  `commands/giveaway.js` mix `winnerCount ?? winner_count`-style fallbacks.
-  It should map rows to camelCase like the other `state/` modules.
-- **`commands/giveaway.js`** dispatches with a ternary instead of a
-  `HANDLERS` map, and its `giveaways` table columns aren't aligned or
-  commented.
-- **`lib/captcha.js`** keeps `pendingChallenges` in a module-level `Map`. The
-  reasoning is in a comment there (short-lived, keeps the answer
-  server-side), but WorkingAgreements.md still names `lib/autoDelete.js` as *the one*
-  in-memory exception. Either WorkingAgreements.md should list both, or this should
-  move.
-- **`lib/captcha.js`** uses `Math.random` for choosing the challenge.
-  Per §10 it should use `crypto.randomInt`.
 - **`customId` formats** are mixed (`securityVerifyStart`,
   `voice-hub-prune`, `giveaway:enter:`). Existing ones can't be renamed
   without breaking messages already posted, so leave them. New ones follow

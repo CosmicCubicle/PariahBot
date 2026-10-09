@@ -25,7 +25,7 @@ async function handleCreate(interaction) {
 			components: [giveaways.buildRow(giveaway.id)],
 		});
 		giveawayStore.attachMessage(giveaway.id, giveaway.guildId, message.id);
-		giveaways.scheduleGiveaway(interaction.client, { ...giveaway, giveaway_id: giveaway.id, message_id: message.id });
+		giveaways.scheduleGiveaway(interaction.client, { ...giveaway, messageId: message.id });
 	} catch (error) {
 		throw new Error(`Giveaway could not be posted: ${error.message}`);
 	}
@@ -45,6 +45,11 @@ async function handleEnd(interaction) {
 	await interaction.editReply({ content: 'Giveaway ended and winners were announced.' });
 }
 
+const HANDLERS = {
+	create: handleCreate,
+	end: handleEnd,
+};
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('giveaway')
@@ -60,7 +65,9 @@ module.exports = {
 			.setDescription('(Admin) End an active giveaway immediately.')
 			.addStringOption((option) => option.setName('id').setDescription('Giveaway ID from its creation reply').setRequired(true))),
 	async execute(interaction) {
-		const handler = interaction.options.getSubcommand() === 'create' ? handleCreate : handleEnd;
+		const subcommand = interaction.options.getSubcommand();
+		const handler = HANDLERS[subcommand];
+		if (!handler) throw new Error(`Unknown /giveaway subcommand: ${subcommand}`);
 		await handler(interaction);
 	},
 };
