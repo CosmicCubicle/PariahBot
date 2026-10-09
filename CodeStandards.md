@@ -239,8 +239,16 @@ scoped to `interaction.guildId`.
   them per user or per channel.
 - The bot's role must be above any role it grants or anyone it removes. Check
   this up front and name the fix in the error.
-- If a feature needs a new bot permission, add it to the permission table on
-  the wiki with the reason.
+- The wiki's [Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)
+  page has two permission sets: **Recommended** (the standard invite) and
+  **Required** (the ones the code actually uses). If a feature needs a new
+  bot permission:
+  - add it to the **Required** table, with the feature that needs it
+  - make sure the **Recommended** set includes it too
+  - recalculate both invite numbers on that page
+- The bot's permissions belong on its own **PariahBot** role, the one the
+  invite creates. Never ask server admins to give it a shared "Bots" role
+  instead.
 
 ## 9. Destructive actions
 
