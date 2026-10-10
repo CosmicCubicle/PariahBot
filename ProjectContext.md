@@ -222,7 +222,98 @@ layout. See [References.md](References.md) for links.
 documented behaviour needs a wiki push alongside the PR, and the PR
 description should say so.
 
-## 8. Open items
+## 8. Music playback: considered and declined
+
+Requested in #68 (Spotify and YouTube), researched in #72, **declined**.
+Both issues are closed. This section exists so the question doesn't get
+re-litigated from scratch: the answer is not "nobody got around to it", it
+is that the sources the request needs cannot be used, and paying does not
+change that.
+
+### Why the mainstream platforms are out
+
+**Spotify can never be the audio source.** Its Web API offers metadata and
+playback *control* — there is no audio stream a third-party application can
+consume. Direct audio access is restricted by Spotify's licensing, and
+Developer Policy § II.4.c separately forbids offering metadata as a
+standalone product. Every bot advertising Spotify playback reads Spotify
+metadata and fetches the audio from somewhere else.
+
+**YouTube is an enforced risk, not a theoretical one.** Streaming its audio
+outside YouTube's player breaches its terms, and that has been acted on
+against this exact category of software: cease-and-desists shut down
+**Groovy** and **Rythm** in 2021 — then the two largest Discord music bots —
+and **Hydra** received one in January 2023. Restricting calls to the music
+category (`videoCategoryId=10`) narrows the feature's scope and changes
+nothing about this.
+
+**Paying doesn't unlock the others, because the blocker is the licensing
+model rather than the price.** Every major catalogue licenses *per-listener,
+client-side* playback, which a bot mixing one stream to a whole voice channel
+is structurally incompatible with:
+
+| Service | Why it can't be used |
+| --- | --- |
+| Spotify | No audio stream exposed to third parties at all |
+| TIDAL | Audio flows only through TIDAL's own Player SDK — the Playback API issues signed manifests, not bytes. Developer terms are non-commercial and forbid competing with TIDAL's platform |
+| Apple Music | MusicKit is client-side and requires a subscription per listener |
+| Deezer | Third parties get 30-second previews |
+
+So there is no paid tier that makes any of this legitimate.
+
+### What would have been viable
+
+Recorded in case this is ever revisited — these were researched and are
+genuinely permitted, they just don't deliver what #68 asked for:
+
+- **A self-hosted library** (Navidrome, Jellyfin via the Subsonic API) — your
+  own files, no third party, no key, no quota, nothing that can break.
+- **Internet radio** (Icecast/Shoutcast, with `radio-browser.info` as a
+  station directory) — the station holds the licence and publishes the stream
+  for public consumption.
+- **Audius** — a public REST API with a documented stream endpoint, artists
+  opting in to distribution.
+- **Jamendo** — a Creative Commons catalogue plus curated radio, free up to
+  35,000 requests a month for non-commercial use.
+- **SoundCloud** — the one real paid route to a broad catalogue: API streaming
+  *is* permitted for approved apps, but access is gated on case-by-case
+  approval and, as of July 2026, on the developer's own account holding a paid
+  Artist Pro subscription. Not something a feature can be planned around.
+
+Royalty-free subscription libraries (Uppbeat, Epidemic Sound, Artlist) need
+their licences read individually: most cover music used in *content you
+publish*, not operating a service that streams their catalogue on demand.
+
+### What it would have cost anyway
+
+Worth keeping, because it applies to any future audio feature. Four
+documented constraints are affected, and each would need an explicit
+exception rather than an assumption:
+
+- **No C/C++ toolchain on the deploy host** (CodeStandards.md § 1, and the
+  wiki's Host Installation page). `@discordjs/opus` needs `node-gyp`;
+  `opusscript` is the pure-JS fallback, at a CPU cost per stream.
+- **No ffmpeg.** `deploy/setup.sh` installs `ca-certificates curl git` only,
+  so host provisioning would have to add it — reaching every self-hoster.
+- **"Keep dependencies minimal"** (§ 1). `@discordjs/voice`, an opus encoder
+  and a sodium binding together would be the largest dependency addition this
+  project has made.
+- **SSRF surface widens from admins to members** (WorkingAgreements.md § 6).
+  `lib/safeFetch.js` exists because an *admin* can type a feed URL; here a
+  *member* would be typing the address of something to play.
+
+And capacity was never measured: audio transcodes per guild, so playback in N
+servers means N concurrent ffmpeg processes on the one host that runs
+everything else.
+
+### If someone wants music in a PariahBot server
+
+Run an existing self-hosted music bot alongside it. That cuts against this
+project's purpose (§ 1: replacing several single-purpose bots with one), and
+it is still the right answer here — the consolidation argument doesn't
+outweigh a source problem that has no legitimate solution.
+
+## 9. Open items
 
 - Streamer alerts support Twitch (live) and YouTube (live and uploads). A
   third platform, such as Kick, needs:
@@ -240,5 +331,7 @@ description should say so.
   social platform would get a new issue and follow the Instagram pattern.
 - Every YouTube upload is announced, including Shorts. There's no per-channel
   or per-kind filter yet, and uploads go to the same channel as live alerts.
+- A music feature (#68, #72) was considered and **declined** — see § 8 for why,
+  and for what was researched in case it is ever revisited.
 - Code that doesn't meet the standards yet is listed in
   [CodeStandards.md § 15](CodeStandards.md#15-known-deviations-in-current-code).
