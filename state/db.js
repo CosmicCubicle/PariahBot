@@ -158,6 +158,31 @@ db.exec(`
 		PRIMARY KEY (guild_id, platform, content_id, kind)
 	);
 
+	-- Instagram accounts a guild posts alerts for (/instagram add). account_id
+	-- is the Instagram user ID; Business Discovery can only look accounts up by
+	-- username, so that's what's polled, and the ID is what catches the name
+	-- being taken over by a different account after a rename — see
+	-- lib/instagramAlerts.js. added_at stops a newly added account announcing
+	-- its back catalogue: only posts published after it count.
+	CREATE TABLE IF NOT EXISTS instagram_accounts (
+		guild_id   TEXT NOT NULL,
+		account_id TEXT NOT NULL,
+		username   TEXT NOT NULL,
+		added_at   TEXT NOT NULL,
+		PRIMARY KEY (guild_id, account_id)
+	);
+
+	-- Every Instagram post already announced, so nothing posts twice across a
+	-- restart. Separate from stream_announcements: a post is seen once and
+	-- never "still live", so it needs no last_seen_at. Pruned 30 days after
+	-- announcing — safe because only posts from the last 7 days are checked.
+	CREATE TABLE IF NOT EXISTS instagram_announcements (
+		guild_id     TEXT NOT NULL,
+		media_id     TEXT NOT NULL,
+		announced_at TEXT NOT NULL,
+		PRIMARY KEY (guild_id, media_id)
+	);
+
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
@@ -241,6 +266,17 @@ if (!hasColumn('guild_settings', 'stream_alert_channel_id')) {
 }
 if (!hasColumn('guild_settings', 'stream_alert_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_role_id TEXT');
+}
+
+// /instagram post alerts — a dedicated channel, separate from the stream
+// alert channel. Same "a set channel *is* on" convention: a null
+// instagram_channel_id means Instagram alerts are off. instagram_role_id is
+// the optional role pinged with each post.
+if (!hasColumn('guild_settings', 'instagram_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'instagram_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_role_id TEXT');
 }
 
 // When a live item was last confirmed still live — refreshed on every poll
