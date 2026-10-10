@@ -139,37 +139,42 @@ function showLogin() {
 	$('nav').replaceChildren();
 	$('main').replaceChildren(h('div', { class: 'center' }, h('div', { class: 'card' },
 		h('h2', {}, 'Sign in'),
-		h('p', { class: 'muted' }, "Only the bot's owner can use this dashboard."),
+		h('p', { class: 'muted' }, "For the bot's owner, and admins of the servers it's in. You'll see the servers you're an admin in."),
 		h('a', { href: '/login' }, h('button', { class: 'primary', type: 'button' }, 'Sign in with Discord')))));
 }
 
 function renderAccount() {
 	const { user } = state;
 	const avatar = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : null;
-	$('account').replaceChildren(
+	// Wrapped in h(), which skips null: replaceChildren would show "null" for
+	// an account with no avatar.
+	$('account').replaceChildren(h('span', { class: 'account' },
 		avatar ? h('img', { src: avatar, alt: '' }) : null,
-		h('span', {}, user.username),
+		h('span', {}, user.isOwner ? `${user.username} (owner)` : user.username),
 		btn('Sign out', 'secondary', async () => {
 			await fetch('/logout', { method: 'POST', headers: { 'X-PariahBot-Dashboard': '1' } });
 			showLogin();
 		}),
-	);
+	));
 }
 
 function renderNav() {
 	const navButton = (label, active, onclick, icon) => h('button', { class: active ? 'active' : '', type: 'button', onclick }, icon, h('span', {}, label));
-	$('nav').replaceChildren(
-		navButton('Status', state.view === 'status', () => showStatus(), h('span', { class: 'icon' }, '●')),
+	// replaceChildren takes nodes only: an array becomes the text
+	// "[object HTMLButtonElement],…" and null becomes "null". So the list is
+	// built here, filtered, and spread.
+	const items = [
+		// Status covers every server and the host, so only the owner gets it.
+		state.user.isOwner ? navButton('Status', state.view === 'status', () => showStatus(), h('span', { class: 'icon' }, '●')) : null,
 		h('h3', {}, `Servers (${state.guilds.length})`),
-		// Spread: replaceChildren takes nodes, not an array — an array is
-		// turned into the text "[object HTMLButtonElement],…".
 		...state.guilds.map((guild) => navButton(
 			guild.name,
 			state.view === 'guild' && state.guild?.id === guild.id,
 			() => openGuild(guild.id),
 			guild.icon ? h('img', { src: guild.icon, alt: '' }) : h('span', { class: 'icon' }, guild.name.slice(0, 2)),
 		)),
-	);
+	];
+	$('nav').replaceChildren(...items.filter(Boolean));
 }
 
 async function showStatus() {
@@ -551,7 +556,16 @@ async function start() {
 	} catch (error) {
 		toast(error.message, true);
 	}
-	showStatus();
+	if (state.user.isOwner) {
+		showStatus();
+	} else if (state.guilds.length) {
+		openGuild(state.guilds[0].id);
+	} else {
+		renderNav();
+		$('main').replaceChildren(h('div', { class: 'center' }, h('div', { class: 'card' },
+			h('h2', {}, 'No servers to manage'),
+			h('p', { class: 'muted' }, "You're not an admin in any server PariahBot is in any more. Server admins need Administrator or a mod role."))));
+	}
 }
 
 start();

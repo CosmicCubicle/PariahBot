@@ -26,7 +26,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
-- **Admin dashboard** — an optional web page on the bot's host where the bot's owner, signed in with Discord, sees its status and changes most settings for every server. Off unless `deploy/setup.sh` (or `hom.env`) turns it on.
+- **Admin dashboard** — an optional web page on the bot's host. Server admins sign in with Discord and change most settings for the servers they admin; the bot's owner sees every server plus the bot's status. Reach it locally, through an SSH tunnel, or publicly through a Cloudflare Tunnel. Off unless `deploy/setup.sh` (or `hom.env`) turns it on.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 
 All per-server data is stored in SQLite (`data/pariahbot.sqlite`) and scoped by
