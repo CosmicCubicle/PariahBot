@@ -55,6 +55,24 @@ function getHub(channelId) {
 	return mapHub(selectHubStmt.get(channelId));
 }
 
+// /voice edit and the admin dashboard. guild_id is in the WHERE for the same
+// reason as removeHub above: the hub comes from a free-typed option.
+// Validation is in lib/voiceHubs.js. Changes apply to temp channels created
+// from now on; open ones keep the limits they were made with.
+const updateHubSettingsStmt = db.prepare(`
+	UPDATE hubs SET
+		category_id = @categoryId,
+		name_template = @nameTemplate,
+		default_limit = @defaultLimit,
+		min_limit = @minLimit,
+		max_limit = @maxLimit
+	WHERE channel_id = @channelId AND guild_id = @guildId
+`);
+
+function updateHubSettings(channelId, guildId, { categoryId, nameTemplate, defaultLimit, minLimit, maxLimit }) {
+	return updateHubSettingsStmt.run({ channelId, guildId, categoryId: categoryId ?? null, nameTemplate, defaultLimit, minLimit, maxLimit }).changes > 0;
+}
+
 const selectHubsForGuildStmt = db.prepare('SELECT * FROM hubs WHERE guild_id = ? ORDER BY channel_id');
 
 function listHubs(guildId) {
@@ -124,6 +142,7 @@ module.exports = {
 	removeHub,
 	getHub,
 	listHubs,
+	updateHubSettings,
 	createTempChannel,
 	removeTempChannel,
 	getTempChannel,

@@ -57,6 +57,15 @@ function getGuildSettings(guildId) {
 		defaultChannelId: row?.default_channel_id ?? null,
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
 		ownerKickDisabled: !!row?.owner_kick_disabled,
+		// Which /vc owner controls are allowed — see OWNER_CONTROLS in
+		// lib/tempVoice.js. kick is the original owner_kick_disabled.
+		ownerControls: {
+			name: !row?.owner_rename_disabled,
+			limit: !row?.owner_limit_disabled,
+			lock: !row?.owner_lock_disabled,
+			kick: !row?.owner_kick_disabled,
+			transfer: !row?.owner_transfer_disabled,
+		},
 		memberRoleId: row?.member_role_id ?? null,
 		streamerRoleId: row?.streamer_role_id ?? null,
 		screeningChannelId: row?.screening_channel_id ?? null,
@@ -138,6 +147,27 @@ const selectModRolesStmt = db.prepare('SELECT role_id FROM guild_mod_roles WHERE
 
 function listModRoles(guildId) {
 	return selectModRolesStmt.all(guildId).map((row) => row.role_id);
+}
+
+// One statement per /vc owner control; the column names are fixed here, never
+// taken from input.
+const OWNER_CONTROL_COLUMNS = {
+	name: 'owner_rename_disabled',
+	limit: 'owner_limit_disabled',
+	lock: 'owner_lock_disabled',
+	kick: 'owner_kick_disabled',
+	transfer: 'owner_transfer_disabled',
+};
+const setOwnerControlStmts = Object.fromEntries(Object.entries(OWNER_CONTROL_COLUMNS).map(([control, column]) => [control, db.prepare(`
+	INSERT INTO guild_settings (guild_id, ${column})
+	VALUES (@guildId, @disabled)
+	ON CONFLICT(guild_id) DO UPDATE SET ${column} = excluded.${column}
+`)]));
+
+function setOwnerControlAllowed(guildId, control, allowed) {
+	const stmt = setOwnerControlStmts[control];
+	if (!stmt) throw new Error(`Unknown owner control: ${control}`);
+	stmt.run({ guildId, disabled: allowed ? 0 : 1 });
 }
 
 const setOwnerKickDisabledStmt = db.prepare(`
@@ -365,6 +395,7 @@ module.exports = {
 	disableOwnerKick,
 	enableOwnerKick,
 	isOwnerKickDisabled,
+	setOwnerControlAllowed,
 	setMemberRole,
 	clearMemberRole,
 	setStreamerRole,
