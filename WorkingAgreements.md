@@ -130,7 +130,9 @@ Two code paths remove members:
 
 Every change to either must keep the admin and mod-role check (`isAdmin` from
 [lib/permissions.js](lib/permissions.js)) ahead of the removal. In
-`lib/moderation.js` it's in `checkTarget`, which also covers timeouts.
+`lib/moderation.js` it's in `checkTarget`, which also covers timeouts and
+warnings. Automatic timeouts from repeated warnings only follow a warning
+that passed it, so they can't reach an admin or mod either.
 
 **Why:** a moderator who wanders into the trap channel must never be removed
 by their own bot. For `/mod`, it stops one moderator using the bot against

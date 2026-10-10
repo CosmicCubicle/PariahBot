@@ -124,6 +124,13 @@ Both follow the two rules in
 skip admins and mod roles, and DM before removing. `/mod` also requires the
 moderator to outrank the target, as Discord's own kick and ban do.
 
+**Every moderation action is recorded** as a case in `mod_cases`, for
+`/mod history`. That covers `/mod`, the right-click actions, automatic
+timeouts from repeated warnings, temporary bans ending, and honeypot
+removals. Cases are kept indefinitely, because they're the server's record.
+`/mod remove-case` deletes one (a mistaken warning, say) without undoing the
+action, and that removal is itself reported through the admin alerts.
+
 **Temporary bans** are stored in SQLite (`temp_bans`), not just as timers, so
 a restart doesn't turn them permanent. The unban is scheduled again at
 startup, and runs straight away if it fell due while the bot was offline.
