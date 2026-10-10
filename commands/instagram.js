@@ -3,6 +3,8 @@ const instagramStore = require('../state/instagram');
 const guildSettings = require('../state/guildSettings');
 const instagram = require('../lib/instagram');
 const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { MESSAGE_PLACEHOLDERS } = require('../lib/instagramAlerts');
+const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_LISTED = 50;
@@ -78,6 +80,39 @@ async function handleChannel(interaction) {
 	await interaction.reply({ content: notes.join('\n'), ephemeral: true });
 }
 
+// Sample values for the preview that `message` replies with.
+const PREVIEW_VALUES = { name: '@someaccount', title: 'Behind the scenes from today', url: 'https://www.instagram.com/p/example/', platform: 'Instagram' };
+
+async function handleMessage(interaction) {
+	requireAdmin(interaction);
+
+	const text = interaction.options.getString('text').trim();
+	const unknown = unknownPlaceholders(text, MESSAGE_PLACEHOLDERS);
+	if (unknown.length) {
+		throw new Error(`I don't know ${unknown.join(', ')}. You can use {name}, {title}, {url}, {platform} and {role}.`);
+	}
+
+	guildSettings.setInstagramMessage(interaction.guildId, text);
+	const { instagramRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const preview = renderAlertContent(text, PREVIEW_VALUES, instagramRoleId) ?? '';
+	const notes = [
+		'Instagram posts will now say:',
+		`> ${preview.replace(/\n/g, '\n> ')}`,
+		instagramRoleId
+			? `The ping for <@&${instagramRoleId}> goes ${text.includes('{role}') ? 'where {role} is' : 'at the start'}.`
+			: 'No ping role is set, so nobody is pinged. Add one with `/instagram channel`.',
+		'Only the ping role ever notifies anyone. @everyone or other mentions in the message show as text only.',
+	];
+	// No mentions allowed: the preview must not ping the role for real.
+	await interaction.reply({ content: notes.join('\n'), ephemeral: true, allowedMentions: { parse: [] } });
+}
+
+async function handleClearMessage(interaction) {
+	requireAdmin(interaction);
+	guildSettings.setInstagramMessage(interaction.guildId, null);
+	await interaction.reply({ content: 'Custom message cleared — posts go back to just the ping.', ephemeral: true });
+}
+
 async function handleDisable(interaction) {
 	requireAdmin(interaction);
 	guildSettings.clearInstagramAlerts(interaction.guildId);
@@ -107,7 +142,7 @@ async function handleRemove(interaction) {
 async function handleList(interaction) {
 	requireAdmin(interaction);
 
-	const { instagramChannelId, instagramRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const { instagramChannelId, instagramRoleId, instagramMessage } = guildSettings.getGuildSettings(interaction.guildId);
 	const accounts = instagramStore.listAccountsForGuild(interaction.guildId);
 
 	const lines = accounts.slice(0, MAX_LISTED)
@@ -121,6 +156,7 @@ async function handleList(interaction) {
 			{ name: 'Channel', value: instagramChannelId ? `<#${instagramChannelId}>` : 'Not set — alerts are off', inline: true },
 			{ name: 'Ping role', value: instagramRoleId ? `<@&${instagramRoleId}>` : 'None', inline: true },
 			{ name: 'Host', value: instagram.isConfigured() ? 'Set up' : 'Not set up — nothing will post', inline: true },
+			{ name: 'Custom message', value: instagramMessage ? instagramMessage.slice(0, 1024) : 'None — just the ping' },
 		)
 		.setDescription(lines.length ? lines.join('\n') : 'No accounts yet. Add one with `/instagram add`.');
 
@@ -130,6 +166,8 @@ async function handleList(interaction) {
 const HANDLERS = {
 	add: handleAdd,
 	channel: handleChannel,
+	message: handleMessage,
+	'clear-message': handleClearMessage,
 	disable: handleDisable,
 	remove: handleRemove,
 	list: handleList,
@@ -160,6 +198,17 @@ module.exports = {
 				.setName('ping_role')
 				.setDescription('Role to ping with each post (optional)')
 				.setRequired(false)))
+		.addSubcommand((sub) => sub
+			.setName('message')
+			.setDescription('(Admin) Set custom text for posts. The ping role is still pinged.')
+			.addStringOption((option) => option
+				.setName('text')
+				.setDescription('Your text. Placeholders: {name} {title} {url} {platform} {role}')
+				.setMaxLength(MAX_TEMPLATE_LENGTH)
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('clear-message')
+			.setDescription('(Admin) Remove the custom text, so posts are just the ping again.'))
 		.addSubcommand((sub) => sub
 			.setName('disable')
 			.setDescription('(Admin) Stop sharing Instagram posts. The account list is kept.'))

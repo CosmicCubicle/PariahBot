@@ -299,6 +299,17 @@ if (!hasColumn('guild_settings', 'instagram_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_role_id TEXT');
 }
 
+// Optional custom text posted with each /streamers and /instagram alert,
+// with {placeholders} filled in — see lib/alertContent.js. Null means the
+// plain ping. Kept by /streamers disable and /instagram disable, like the
+// streamer list and the account list, so re-enabling brings it back.
+if (!hasColumn('guild_settings', 'stream_alert_message')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_message TEXT');
+}
+if (!hasColumn('guild_settings', 'instagram_message')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_message TEXT');
+}
+
 // /bannedwords on or off. A separate flag rather than "a set value is on",
 // because there's no single value to set: the lists and words are kept
 // while it's off, so /bannedwords enable can bring the same setup back.
