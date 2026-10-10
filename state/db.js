@@ -217,6 +217,36 @@ db.exec(`
 		PRIMARY KEY (guild_id, user_id)
 	);
 
+	-- /rss: feeds a guild follows, each posting to its own channel. One row
+	-- per URL per guild. role_id and message are optional — see
+	-- lib/alertContent.js. last_error is the latest fetch or post failure,
+	-- shown in /rss list and cleared by the next success; it's also how the
+	-- poller logs a failure once rather than every 10 minutes.
+	CREATE TABLE IF NOT EXISTS rss_feeds (
+		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		guild_id        TEXT NOT NULL,
+		url             TEXT NOT NULL,
+		title           TEXT NOT NULL,
+		channel_id      TEXT NOT NULL,
+		role_id         TEXT,
+		message         TEXT,
+		added_at        TEXT NOT NULL,
+		last_checked_at TEXT,
+		last_error      TEXT,
+		UNIQUE (guild_id, url)
+	);
+
+	-- Every item each feed has shown, so it's posted once. Seeded with the
+	-- feed's current items when it's added, so its back catalogue isn't
+	-- posted. last_seen_at is refreshed while the item is still in the feed,
+	-- and rows are pruned 30 days after it drops out — see lib/rssAlerts.js.
+	CREATE TABLE IF NOT EXISTS rss_items (
+		feed_id      INTEGER NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE,
+		item_id      TEXT NOT NULL,
+		last_seen_at TEXT NOT NULL,
+		PRIMARY KEY (feed_id, item_id)
+	);
+
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
