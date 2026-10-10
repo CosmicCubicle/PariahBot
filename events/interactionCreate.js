@@ -4,6 +4,7 @@ const { handleHubButtonInteraction } = require('../lib/hubDesync');
 const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
 const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require('../lib/captcha');
 const { handleEntryInteraction } = require('../lib/giveaways');
+const { handleModerationModal } = require('../lib/moderation');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -46,6 +47,19 @@ module.exports = {
 			return;
 		}
 
+		if (interaction.isModalSubmit()) {
+			// The forms opened by the right-click Kick/Ban/Timeout actions. The
+			// right-click itself is audit-logged below like any command; the
+			// action taken is reported through /alerts by lib/moderation.js.
+			try {
+				const handled = await handleModerationModal(interaction);
+				if (!handled) return; // some other feature's form, not ours
+			} catch (error) {
+				await replyWithError(interaction, error);
+			}
+			return;
+		}
+
 		if (interaction.isAutocomplete()) {
 			// Fires on every keystroke while typing an autocompleted option, so this
 			// intentionally skips the audit log (would be pure noise) and fails silently
@@ -61,7 +75,9 @@ module.exports = {
 			return;
 		}
 
-		if (!interaction.isChatInputCommand()) return;
+		// Right-click (user context menu) commands run, and are audit-logged,
+		// exactly like slash commands — see commands/kickMember.js.
+		if (!interaction.isChatInputCommand() && !interaction.isUserContextMenuCommand()) return;
 
 		const command = interaction.client.commands.get(interaction.commandName);
 		if (!command) return;

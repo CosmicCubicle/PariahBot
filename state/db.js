@@ -202,6 +202,21 @@ db.exec(`
 		PRIMARY KEY (guild_id, word)
 	);
 
+	-- Temporary bans from /mod ban duration:…, so the unban survives a
+	-- restart (see lib/moderation.js). One per user per guild: a new ban
+	-- replaces it, and /mod unban or a permanent ban deletes it. Rows are
+	-- only ever an instruction to unban later — the ban itself lives in
+	-- Discord, so an unban done by hand just leaves a row that finds nothing
+	-- to undo.
+	CREATE TABLE IF NOT EXISTS temp_bans (
+		guild_id  TEXT NOT NULL,
+		user_id   TEXT NOT NULL,
+		unban_at  TEXT NOT NULL,
+		banned_by TEXT NOT NULL,
+		reason    TEXT,
+		PRIMARY KEY (guild_id, user_id)
+	);
+
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
