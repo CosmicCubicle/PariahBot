@@ -11,8 +11,20 @@ const path = require('node:path');
 // don't assume "latest" still means "has a prebuilt binary."
 const Database = require('better-sqlite3');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_FILE = path.join(DATA_DIR, 'pariahbot.sqlite');
+// PARIAHBOT_DB_FILE repoints the whole schema at another file. Unset in
+// production, which is every normal run. Two things need it:
+//
+//   - the test suite (test/), because requiring any state/ module runs this
+//     file's migrations on import — against the real dev database, if it were
+//     still hardcoded
+//   - the old-schema migration drill in CodeStandards.md § 13
+//
+// Resolved rather than used as given, so a relative value doesn't depend on
+// the process's working directory.
+const DB_FILE = process.env.PARIAHBOT_DB_FILE
+	? path.resolve(process.env.PARIAHBOT_DB_FILE)
+	: path.join(__dirname, '..', 'data', 'pariahbot.sqlite');
+const DATA_DIR = path.dirname(DB_FILE);
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 

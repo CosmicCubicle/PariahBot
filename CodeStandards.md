@@ -66,6 +66,7 @@ There is no linter or formatter config, so match the existing style by hand:
 | `lib/dashboard/` | The admin dashboard's server, sign-in and JSON API | Reuses `state/` and `lib/`. Validation shared with a command lives in `lib/`, not in either. Every ID from the page is checked against its server. |
 | `dashboard/` | The dashboard page | Static files only. Build the DOM with `textContent` (the page's `h()`), never `innerHTML`. |
 | `deploy/` | Host setup (`setup.sh`) | Idempotent. Safe to re-run. |
+| `test/` | The `node:test` suite | One `<area>.test.js` per area, shared fakes in `test/helpers/`. No token, network or real database (see §13). |
 
 When the same check appears in two places, move it into `lib/` (see
 `lib/vcScope.js`, which replaced seven near-identical checks in `/vc`). A
@@ -347,10 +348,19 @@ A feature isn't done until the docs match it:
 
 ## 13. Verification
 
-There is no automated test suite (`npm test` is a placeholder), so
-verification is manual. The PR description must say what was checked. There
-is no second gate behind it: if a change isn't exercised by hand, nothing
-catches it before merge.
+`npm test` runs the `node:test` suite in `test/` (no dependency — it's built
+into Node). It covers what can be checked without Discord: pure `lib/` logic,
+the auto-delete reap decisions, the permission levels, schema migrations
+against a real old-schema database, and guild isolation on the queries that
+take a free-typed id.
+
+It does **not** cover anything that talks to Discord, which is most of the
+bot. Those parts are still verified by hand, and the PR description must say
+what was checked. Treat the suite as a floor, not a gate: a green run means
+the logic below the API layer still holds, not that the feature works.
+
+Add tests with a change when the logic is reachable without Discord. When it
+isn't, say so in the PR rather than leaving it unexplained.
 
 **Prerequisite: a working `hom.env`.** It's gitignored, so a fresh clone has
 none and every check below is impossible until you create one from
@@ -369,13 +379,15 @@ Alert and dashboard work therefore can't be verified without third-party
 credentials. Budget for obtaining them before starting, or say plainly in the
 PR which checks you couldn't run and why.
 
+- Run `npm test`. It needs no token, network or real database.
 - Start the bot and confirm every command loads and `npm run deploy`
   succeeds.
 - Exercise the change **against a real Discord server**, not just by reading
   the code. Buttons must render and work end to end.
-- For schema migrations, run against a copy of a database with the **old**
-  schema (including its indexes and constraints). Then **restart a second
-  time** to prove the migration is one-time and doesn't undo later changes.
+- For schema migrations, add a case to `test/db.test.js` — it seeds a genuine
+  old-schema database (CHECK constraints and indexes included) and re-requires
+  `state/db.js` to prove the migration is idempotent and one-time. Point
+  `PARIAHBOT_DB_FILE` at a scratch copy to try it by hand as well.
 - For permission or isolation changes, try the abuse case: a free-typed ID
   from another guild, or a non-admin invoking an admin command.
 - For dependency bumps, run `npm audit --omit=dev` and do one real API round
@@ -450,12 +462,3 @@ that area.
   they can't collide with component ids in the `interactionCreate.js` chain.
   Recorded here only because it reads like a §5 breach at a glance. Keep
   modal input ids short and local; namespace the *modal's* own `customId`.
-- **`fetchPinned()` in `lib/autoDelete.js`** is deprecated in discord.js,
-  which logs a `DeprecationWarning` at startup. Its replacement,
-  `fetchPins()`, returns a different shape (paginated), so the switch needs
-  testing against real pinned messages rather than a rename.
-- **The deleted-hub Prune and Restore buttons** (`lib/hubDesync.js`) check
-  Manage Channels, not `isMod` (§8). They can be clicked from a DM, where
-  only Discord's permission bits are available without fetching the
-  member's roles. Move them to `isMod` (the level `/voice` uses) when that code is next touched,
-  and update the wiki's Permissions page with it.
