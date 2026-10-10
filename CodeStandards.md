@@ -348,7 +348,26 @@ A feature isn't done until the docs match it:
 ## 13. Verification
 
 There is no automated test suite (`npm test` is a placeholder), so
-verification is manual. The PR description must say what was checked.
+verification is manual. The PR description must say what was checked. There
+is no second gate behind it: if a change isn't exercised by hand, nothing
+catches it before merge.
+
+**Prerequisite: a working `hom.env`.** It's gitignored, so a fresh clone has
+none and every check below is impossible until you create one from
+`.env.example` (see the wiki's Configuration page). `.env.example` carries
+far more than the original token and client id, and which keys you need
+depends on what you touched:
+
+| Working on | Also needs |
+| --- | --- |
+| Anything | `DISCORD_TOKEN`, `CLIENT_ID`, and `GUILD_ID` for instant command registration |
+| Streamer alerts | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `YOUTUBE_API_KEY` |
+| Instagram alerts | `INSTAGRAM_ACCESS_TOKEN`, `INSTAGRAM_BUSINESS_ACCOUNT_ID` |
+| The dashboard | `DASHBOARD_PORT`, `DASHBOARD_HOST`, `DASHBOARD_PUBLIC_URL`, `DISCORD_CLIENT_SECRET` |
+
+Alert and dashboard work therefore can't be verified without third-party
+credentials. Budget for obtaining them before starting, or say plainly in the
+PR which checks you couldn't run and why.
 
 - Start the bot and confirm every command loads and `npm run deploy`
   succeeds.
@@ -365,7 +384,9 @@ verification is manual. The PR description must say what was checked.
 ## 14. Git and pull requests
 
 - **Every piece of work starts with a GitHub issue.** Open one first if it
-  doesn't exist yet.
+  doesn't exist yet. This is step zero, not paperwork to catch up on later:
+  the two GitHub gates below mean that **with no open issue, there is no
+  branch name the repo will accept.** An empty backlog is a hard stop.
 - **Branch names follow `<type>_Issue<N>_<description>`:**
   - `<type>` is `feature` (new behavior), `fix` (a bug) or `maintain` (docs,
     dependencies, tooling, refactors).
@@ -410,10 +431,25 @@ Code that doesn't meet the standards above, and why. Don't copy it into new
 code. If you find more, add it here, and fix it when you're next working in
 that area.
 
-- **`customId` formats** are mixed (`securityVerifyStart`,
-  `voice-hub-prune`, `giveaway:enter:`). Existing ones can't be renamed
-  without breaking messages already posted, so leave them. New ones follow
-  §5.
+- **`customId` formats** are mixed, in **five** different ways — this list is
+  exhaustive as of #66, so don't assume a sixth is sanctioned:
+
+  | Form | Examples |
+  | --- | --- |
+  | camelCase | `securityVerifyStart`, `securityVerifyAnswer` |
+  | camelCase with an id | `roleMenuOpen:<id>`, `roleMenuSelect:<id>` |
+  | kebab-case with ids | `voice-hub-prune:<guild>:<channel>`, `voice-hub-restore:<guild>:<channel>` |
+  | namespaced (the §5 target) | `giveaway:enter:<id>`, `mod:<action>:<user>` |
+
+  Only the last matches the `feature:action[:id]` form §5 asks for. Existing
+  ones can't be renamed without breaking messages already posted, so leave
+  them. New ones follow §5.
+- **Modal text inputs use bare `customId`s** (`duration`, `reason` in
+  `lib/moderation.js`). This is **fine, not a violation**: a modal's input ids
+  are scoped to that modal and read back by name from its own submission, so
+  they can't collide with component ids in the `interactionCreate.js` chain.
+  Recorded here only because it reads like a §5 breach at a glance. Keep
+  modal input ids short and local; namespace the *modal's* own `customId`.
 - **`fetchPinned()` in `lib/autoDelete.js`** is deprecated in discord.js,
   which logs a `DeprecationWarning` at startup. Its replacement,
   `fetchPins()`, returns a different shape (paginated), so the switch needs
