@@ -103,7 +103,8 @@ invoked from. See
 - **The live database already exists and has real data.** A schema change
   that only works on a fresh install will break production. Migrations have
   to be guarded and run only once (see CodeStandards.md § 6).
-- **The host installs with `npm ci --omit=dev` and has no C/C++ toolchain.**
+- **The host installs with `npm ci --omit=dev` and has no C/C++ toolchain**
+  (`deploy/setup.sh` doesn't install one).
   This is why `better-sqlite3` is pinned to a version that ships prebuilt
   binaries (see the comment in `state/db.js`).
 - **Node 24 is the minimum version.**
