@@ -147,7 +147,8 @@ Use [commands/autodelete.js](commands/autodelete.js) as the reference.
     if the clicker has left the server (see `lib/hubDesync.js`).
 - **Gateway intents:** only non-privileged intents are used today. Building a
   feature differently to avoid a privileged intent is preferred; the captcha
-  uses a persistent button instead of `guildMemberAdd` for this reason.
+  uses a persistent button instead of `guildMemberAdd`, and banned words use
+  Discord AutoMod instead of reading message text, for this reason.
   Adding an intent needs a comment in `index.js` explaining what needs it.
 
 ## 6. State and the database

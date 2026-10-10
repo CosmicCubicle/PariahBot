@@ -21,6 +21,8 @@ something similar.
     configuring the bot inside Discord
   - [Commands](https://github.com/CosmicCubicle/PariahBot/wiki/Commands):
     every subcommand and option
+  - [Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words):
+    the lists, custom words and how the AutoMod rules are managed
   - [Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts):
     Twitch and YouTube credentials, setup and quota
   - [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts):
@@ -59,3 +61,4 @@ from them, it's on purpose.
 | A shared precondition check | [lib/vcScope.js](lib/vcScope.js) |
 | Best-effort event handling | [events/messageCreate.js](events/messageCreate.js) |
 | A destructive action | [lib/honeypot.js](lib/honeypot.js) |
+| Managing Discord AutoMod rules without overwriting an admin's edits | `syncGuild` in [lib/bannedWords.js](lib/bannedWords.js) |
