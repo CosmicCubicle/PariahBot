@@ -26,6 +26,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
+- **Admin dashboard** — an optional web page on the bot's host where the bot's owner, signed in with Discord, sees its status and changes most settings for every server. Off unless `deploy/setup.sh` (or `hom.env`) turns it on.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 
 All per-server data is stored in SQLite (`data/pariahbot.sqlite`) and scoped by
@@ -57,6 +58,7 @@ Both paths are covered in detail in the wiki:
 - **[Feature guides](https://github.com/CosmicCubicle/PariahBot/wiki#features)** — a page per feature: how it works, setup, options and troubleshooting
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
+- **[Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard)** — turning on the web dashboard, signing in, and reaching it from another computer
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
 - **[Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words)** — the lists, custom words, exemptions and reporting
 - **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
@@ -106,7 +108,9 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `lib/` | Feature logic shared between commands and events. |
 | `state/` | SQLite access — `db.js` owns the schema, one module per domain. |
 | `logging/` | Command audit logging. |
-| `deploy/` | Host setup script. |
+| `lib/dashboard/` | The admin dashboard's web server, Discord sign-in and API. |
+| `dashboard/` | The admin dashboard's page (static HTML, CSS and JS, no build step). |
+| `deploy/` | Host setup script, including the optional admin dashboard. |
 
 ## Contributing
 

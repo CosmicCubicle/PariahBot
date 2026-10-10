@@ -29,22 +29,11 @@ async function handleAdd(interaction) {
 	requireAdmin(interaction);
 	requireConfigured();
 
-	const raw = interaction.options.getString('account');
-	const username = instagram.parseUsername(raw);
-	if (!username) {
-		throw new Error(`"${raw}" doesn't look like an Instagram account — use its username, @username or instagram.com/<username> link.`);
-	}
-
 	// The lookup is a network round trip that can outlast Discord's 3-second
 	// window. It also catches a typo now, instead of the account silently
 	// never posting.
 	await interaction.deferReply({ ephemeral: true });
-	const result = await instagram.getRecentMedia(username);
-	if (!result) {
-		throw new Error(`Couldn't read @${username} on Instagram. Check the spelling — and the account has to be a public Business or Creator account (Instagram doesn't let bots read personal accounts). Its owner can switch in Instagram's Settings → Account type and tools.`);
-	}
-
-	const { account } = result;
+	const account = await instagram.resolveAccount(interaction.options.getString('account'));
 	const existing = instagramStore.getAccount(interaction.guildId, account.id);
 	instagramStore.addAccount(interaction.guildId, account.id, account.username);
 

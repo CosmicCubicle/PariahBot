@@ -40,6 +40,13 @@ function listCasesForUser(guildId, userId, limit) {
 	return selectCasesStmt.all(guildId, userId, limit).map(mapCase);
 }
 
+const selectRecentCasesStmt = db.prepare('SELECT * FROM mod_cases WHERE guild_id = ? ORDER BY created_at DESC, id DESC LIMIT ?');
+
+// Newest first, every member — for the admin dashboard.
+function listRecentCasesForGuild(guildId, limit) {
+	return selectRecentCasesStmt.all(guildId, limit).map(mapCase);
+}
+
 const countCasesStmt = db.prepare(`
 	SELECT action, COUNT(*) AS count FROM mod_cases WHERE guild_id = ? AND user_id = ? GROUP BY action
 `);
@@ -75,6 +82,7 @@ function removeCase(guildId, caseId) {
 module.exports = {
 	addCase,
 	listCasesForUser,
+	listRecentCasesForGuild,
 	countCasesByAction,
 	countWarningsSince,
 	getCase,

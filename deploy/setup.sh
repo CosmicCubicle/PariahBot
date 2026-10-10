@@ -71,7 +71,9 @@ ask_required() {
 ask_token() {
 	local current=$1 value
 	read -r -s -p 'Discord bot token: ' value
-	printf '\n'
+	# To the terminal, not stdout: stdout is the captured token, and a newline
+	# there wrote "DISCORD_TOKEN=" with the token on the line below it.
+	printf '\n' >&2
 	if [ -n "$value" ]; then
 		printf '%s' "$value"
 	elif [ -n "$current" ] && [ "$current" != your-bot-token-here ]; then
@@ -82,24 +84,84 @@ ask_token() {
 	fi
 }
 
+# Prompt privately for a secret, keeping the current one when Enter is pressed.
+ask_secret() {
+	local prompt=$1 current=$2 value
+	read -r -s -p "$prompt${current:+ [press Enter to keep the current one]}: " value
+	printf '\n' >&2
+	if [ -n "$value" ]; then
+		printf '%s' "$value"
+	elif [ -n "$current" ]; then
+		printf '%s' "$current"
+	else
+		printf 'A value is required.\n' >&2
+		ask_secret "$prompt" "$current"
+	fi
+}
+
+ask_yes_no() {
+	local reply
+	read -r -p "$1 [y/N]: " reply
+	[[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]
+}
+
 # Collect the Discord credentials used for command registration and bot login.
 TOKEN=$(ask_token "$(get_value DISCORD_TOKEN)")
 CLIENT_ID=$(ask_required 'Discord application/client ID' "$(get_value CLIENT_ID)")
 GUILD_ID=$(ask_required 'Discord guild ID (used for instant command registration)' "$(get_value GUILD_ID)")
 
-DISCORD_TOKEN_VALUE="$TOKEN" CLIENT_ID_VALUE="$CLIENT_ID" GUILD_ID_VALUE="$GUILD_ID" \
-node - "$CONFIG_FILE" <<'NODE'
+# Optional admin dashboard: a web page where the bot's owner sees its status
+# and changes settings. It listens on this machine only (127.0.0.1); other
+# computers reach it through an SSH tunnel. Sign-in is with Discord, which
+# needs the application's client secret. See the wiki's Admin Dashboard page.
+DASHBOARD_PORT_VALUE=$(get_value DASHBOARD_PORT)
+DISCORD_CLIENT_SECRET_VALUE=$(get_value DISCORD_CLIENT_SECRET)
+DASHBOARD_PUBLIC_URL_VALUE=$(get_value DASHBOARD_PUBLIC_URL)
+CONFIGURE_DASHBOARD=no
+if [ -n "$DASHBOARD_PORT_VALUE" ]; then
+	read -r -p "The admin dashboard is on (port $DASHBOARD_PORT_VALUE). Keep it on? [Y/n]: " KEEP_DASHBOARD
+	if [[ "$KEEP_DASHBOARD" =~ ^[Nn]([Oo])?$ ]]; then
+		DASHBOARD_PORT_VALUE=''
+	elif ask_yes_no 'Change its settings?'; then
+		CONFIGURE_DASHBOARD=yes
+	fi
+elif ask_yes_no 'Set up the admin dashboard (a web page for the bot owner)?'; then
+	CONFIGURE_DASHBOARD=yes
+fi
+if [ "$CONFIGURE_DASHBOARD" = yes ]; then
+	while :; do
+		DASHBOARD_PORT_VALUE=$(ask_required 'Dashboard port' "${DASHBOARD_PORT_VALUE:-8080}")
+		[[ "$DASHBOARD_PORT_VALUE" =~ ^[0-9]+$ ]] && [ "$DASHBOARD_PORT_VALUE" -ge 1024 ] && [ "$DASHBOARD_PORT_VALUE" -le 65535 ] && break
+		printf 'Use a port number from 1024 to 65535.\n' >&2
+	done
+	printf '\nIn the Discord Developer Portal, open your application -> OAuth2.\n'
+	printf 'Copy the Client Secret (Reset Secret if none is shown).\n'
+	DISCORD_CLIENT_SECRET_VALUE=$(ask_secret 'Discord client secret' "$DISCORD_CLIENT_SECRET_VALUE")
+	if [ -n "$DASHBOARD_PUBLIC_URL_VALUE" ]; then
+		DASHBOARD_PUBLIC_URL_VALUE=$(ask_required 'Address you open the dashboard at' "$DASHBOARD_PUBLIC_URL_VALUE")
+	fi
+fi
+
+# Written with the bot user's Node (installed through NVM above): root may
+# have no node of its own on a fresh machine.
+sudo -u "$BOT_USER" HOME="$BOT_HOME" \
+	DISCORD_TOKEN_VALUE="$TOKEN" CLIENT_ID_VALUE="$CLIENT_ID" GUILD_ID_VALUE="$GUILD_ID" \
+	DASHBOARD_PORT_VALUE="$DASHBOARD_PORT_VALUE" DISCORD_CLIENT_SECRET_VALUE="$DISCORD_CLIENT_SECRET_VALUE" DASHBOARD_PUBLIC_URL_VALUE="$DASHBOARD_PUBLIC_URL_VALUE" \
+	bash -lc '. "$HOME/.nvm/nvm.sh" >/dev/null && nvm use 24 >/dev/null && node - "$0"' "$CONFIG_FILE" <<'NODE'
 const fs = require('node:fs');
 const file = process.argv[2];
 const values = {
   DISCORD_TOKEN: process.env.DISCORD_TOKEN_VALUE,
   CLIENT_ID: process.env.CLIENT_ID_VALUE,
   GUILD_ID: process.env.GUILD_ID_VALUE,
+  DASHBOARD_PORT: process.env.DASHBOARD_PORT_VALUE,
+  DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET_VALUE,
+  DASHBOARD_PUBLIC_URL: process.env.DASHBOARD_PUBLIC_URL_VALUE,
 };
 const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
 for (const [key, value] of Object.entries(values)) {
   const index = lines.findIndex((line) => line.startsWith(`${key}=`));
-  const replacement = `${key}=${value}`;
+  const replacement = `${key}=${value ?? ''}`;
   if (index === -1) lines.push(replacement);
   else lines[index] = replacement;
 }
@@ -176,3 +238,20 @@ fi
 sudo -u "$BOT_USER" HOME="$BOT_HOME" bash -lc 'cd /opt/PariahBot && . "$HOME/.nvm/nvm.sh" && nvm use 24 >/dev/null && node deploy-commands.js'
 systemctl restart pariahbot.service
 printf 'PariahBot setup complete. Configuration is in %s.\n' "$CONFIG_FILE"
+
+if [ -n "$DASHBOARD_PORT_VALUE" ]; then
+	DASHBOARD_URL=${DASHBOARD_PUBLIC_URL_VALUE:-http://localhost:$DASHBOARD_PORT_VALUE}
+	cat <<EOF
+
+Admin dashboard: on, listening on 127.0.0.1:$DASHBOARD_PORT_VALUE (this machine only).
+
+  1. In the Discord Developer Portal -> your application -> OAuth2 -> Redirects,
+     add exactly:  ${DASHBOARD_URL%/}/auth/callback
+  2. On this machine, open $DASHBOARD_URL
+     From another computer, open an SSH tunnel first:
+       ssh -L $DASHBOARD_PORT_VALUE:localhost:$DASHBOARD_PORT_VALUE $BOT_USER@$(hostname)
+     then open $DASHBOARD_URL in that computer's browser.
+  3. Sign in with Discord. Only the application's owner (or its team members)
+     can get in.
+EOF
+fi

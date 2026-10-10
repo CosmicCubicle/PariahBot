@@ -165,7 +165,35 @@ creates **Discord AutoMod rules** from the server's chosen lists and words
   lists) and one of the six *keyword* rules (the bot's shipped lists plus
   custom words, capped at 1,000 together).
 
-## 6. Documentation lives in the wiki
+## 6. The admin dashboard
+
+An optional web page (`lib/dashboard/`, `dashboard/`) where the bot's
+**owner** sees its status and changes most settings for every server. It
+runs inside the bot process, so it uses the live database and Discord
+connection directly.
+
+- **Off unless the host sets `DASHBOARD_PORT`.** `deploy/setup.sh` asks
+  about it.
+- **It listens on 127.0.0.1.** Other computers reach it through an SSH
+  tunnel, which also means Discord's OAuth redirect can be
+  `http://localhost:…`. A self-hosted bot usually has no public HTTPS
+  address, the same constraint as § 1's polling.
+- **Sign-in is Discord OAuth (`identify`), owner only.** That's the
+  application's owner, or its team members, rechecked on every request.
+  Per-server admins aren't supported: the dashboard reaches every server
+  the bot is in.
+- **Sessions are signed cookies, not stored state,** so they need no
+  exception to WorkingAgreements.md § 1. The key is derived from
+  `DISCORD_CLIENT_SECRET`, so rotating that secret signs everyone out.
+- **Changes need a custom header and a matching Origin, and the Host header
+  is checked.** Every ID the page sends is checked against its server
+  (WorkingAgreements.md § 2). Every change goes in the command audit log as
+  `dashboard <action>`.
+- **What it doesn't do:** create channels or post setup messages (captcha,
+  honeypot, role menus, voice hubs), or act against members. Those stay in
+  Discord, where a moderator's judgement and permissions apply.
+
+## 7. Documentation lives in the wiki
 
 Detailed docs (setup, configuration, the full command reference,
 permissions, troubleshooting) live in the GitHub wiki. The README is kept as
@@ -176,11 +204,11 @@ layout. See [References.md](References.md) for links.
 documented behaviour needs a wiki push alongside the PR, and the PR
 description should say so.
 
-## 7. Open items
+## 8. Open items
 
 - Streamer alerts support Twitch (live) and YouTube (live and uploads). A
   third platform, such as Kick, needs:
-  - an entry in `PLATFORMS` in `commands/streamers.js`
+  - an entry in `PLATFORMS` in `lib/streamPlatforms.js`
   - an API client in `lib/`
   - a poller in `lib/streamAlerts.js`
   

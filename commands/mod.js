@@ -3,7 +3,6 @@ const moderation = require('../lib/moderation');
 const caseStore = require('../state/modCases');
 const guildSettings = require('../state/guildSettings');
 const { parseDuration, formatDuration } = require('../lib/duration');
-const { sendAlert } = require('../lib/alertDelivery');
 const { isAdmin, requireAdmin } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
@@ -14,10 +13,6 @@ const MAX_HISTORY_REASON_LENGTH = 150;
 // Embed descriptions are capped at 4096 characters.
 const MAX_DESCRIPTION_LENGTH = 4096;
 
-const MIN_ESCALATION_WARNINGS = 2;
-const MAX_ESCALATION_WARNINGS = 20;
-// Long enough for "3 warnings in a month", short enough that a typo is caught.
-const MAX_ESCALATION_WINDOW_SECONDS = 365 * 24 * 60 * 60;
 const MAX_APPEAL_NOTE_LENGTH = 300;
 
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -149,37 +144,17 @@ async function handleHistory(interaction) {
 // so removing a case is itself on the record.
 async function handleRemoveCase(interaction) {
 	requireAdmin(interaction);
-	const caseId = interaction.options.getInteger('case');
-	const entry = caseStore.getCase(interaction.guildId, caseId);
-	if (!entry) throw new Error(`There's no case #${caseId} in this server. Find case numbers with \`/mod history\`.`);
-
-	caseStore.removeCase(interaction.guildId, caseId);
-	const embed = new EmbedBuilder()
-		.setColor(EMBED_COLOR)
-		.setTitle(`🗑️ Case #${caseId} removed`)
-		.setDescription(`${moderation.CASE_LABELS[entry.action] ?? entry.action} against <@${entry.userId}>, from <t:${Math.floor(Date.parse(entry.createdAt) / 1000)}:d>.${entry.reason ? `\n> ${entry.reason}` : ''}`)
-		.addFields({ name: 'Removed by', value: `${interaction.member}`, inline: true })
-		.setTimestamp();
-	await sendAlert(interaction.guild, { embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
-
-	await interaction.reply({
-		content: `Removed case #${caseId} (${moderation.CASE_LABELS[entry.action] ?? entry.action} against <@${entry.userId}>). This only deletes the record${entry.action === 'warn' ? ', so it no longer counts towards an automatic timeout' : ' — the action itself still stands'}.`,
-		ephemeral: true,
-		allowedMentions: { parse: [] },
-	});
+	const summary = await moderation.removeCaseRecord(interaction.guild, interaction.options.getInteger('case'), `${interaction.member}`);
+	await interaction.reply({ content: summary, ephemeral: true, allowedMentions: { parse: [] } });
 }
 
 async function handleConfigEscalation(interaction) {
 	requireAdmin(interaction);
-	const count = interaction.options.getInteger('warnings');
-	const windowSeconds = parseDuration(interaction.options.getString('within'));
-	const timeoutSeconds = parseDuration(interaction.options.getString('timeout'));
-	if (windowSeconds > MAX_ESCALATION_WINDOW_SECONDS) {
-		throw new Error(`The window can be at most ${formatDuration(MAX_ESCALATION_WINDOW_SECONDS)}.`);
-	}
-	if (timeoutSeconds > moderation.MAX_TIMEOUT_SECONDS) {
-		throw new Error(`Discord allows a timeout of at most ${formatDuration(moderation.MAX_TIMEOUT_SECONDS)}.`);
-	}
+	const { count, windowSeconds, timeoutSeconds } = moderation.parseEscalation({
+		count: interaction.options.getInteger('warnings'),
+		within: interaction.options.getString('within'),
+		timeout: interaction.options.getString('timeout'),
+	});
 
 	guildSettings.setWarnEscalation(interaction.guildId, { count, windowSeconds, timeoutSeconds });
 	const notes = [`From now on, a member's **${count}${count === 2 ? 'nd' : count === 3 ? 'rd' : 'th'}** warning within ${formatDuration(windowSeconds)} — and each one after it in that window — times them out for **${formatDuration(timeoutSeconds)}**.`];
@@ -293,8 +268,8 @@ module.exports = {
 				.addIntegerOption((option) => option
 					.setName('warnings')
 					.setDescription('How many warnings trigger it')
-					.setMinValue(MIN_ESCALATION_WARNINGS)
-					.setMaxValue(MAX_ESCALATION_WARNINGS)
+					.setMinValue(moderation.MIN_ESCALATION_WARNINGS)
+					.setMaxValue(moderation.MAX_ESCALATION_WARNINGS)
 					.setRequired(true))
 				.addStringOption((option) => option
 					.setName('within')

@@ -63,6 +63,8 @@ There is no linter or formatter config, so match the existing style by hand:
 | `lib/` | Feature logic shared by commands and events | Discord API work, component (button/select) handlers, scheduling. |
 | `state/` | SQLite access | `db.js` owns the schema and migrations. One module per domain wraps its tables. |
 | `logging/` | Command audit log | |
+| `lib/dashboard/` | The admin dashboard's server, sign-in and JSON API | Reuses `state/` and `lib/`. Validation shared with a command lives in `lib/`, not in either. Every ID from the page is checked against its server. |
+| `dashboard/` | The dashboard page | Static files only. Build the DOM with `textContent` (the page's `h()`), never `innerHTML`. |
 | `deploy/` | Host setup (`setup.sh`) | Idempotent. Safe to re-run. |
 
 When the same check appears in two places, move it into `lib/` (see

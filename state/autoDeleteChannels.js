@@ -42,9 +42,17 @@ function listAllChannels() {
 	return selectAllChannelsStmt.all().map(mapChannel);
 }
 
+const selectChannelsForGuildStmt = db.prepare('SELECT * FROM autodelete_channels WHERE guild_id = ? ORDER BY channel_id');
+
+// For the admin dashboard — see lib/dashboard/api.js.
+function listChannelsForGuild(guildId) {
+	return selectChannelsForGuildStmt.all(guildId).map(mapChannel);
+}
+
 module.exports = {
 	setChannel,
 	removeChannel,
 	getChannel,
 	listAllChannels,
+	listChannelsForGuild,
 };

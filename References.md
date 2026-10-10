@@ -15,6 +15,8 @@ something similar.
     Discord application, permissions, invite link
   - [Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation):
     `systemd` deployment and the auto-update job
+  - [Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard):
+    turning it on, Discord sign-in, the SSH tunnel, and what it controls
   - [Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration):
     every `hom.env` variable
   - [Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration):
@@ -64,6 +66,7 @@ from them, it's on purpose.
 | A shared precondition check | [lib/vcScope.js](lib/vcScope.js) |
 | Best-effort event handling | [events/messageCreate.js](events/messageCreate.js) |
 | A destructive action | [lib/honeypot.js](lib/honeypot.js), or `checkTarget` in [lib/moderation.js](lib/moderation.js) for one a moderator runs |
+| A new dashboard setting | an entry in `ACTIONS` in [lib/dashboard/api.js](lib/dashboard/api.js), validated with its `require*` helpers, plus a control in [dashboard/app.js](dashboard/app.js) |
 | A right-click (context menu) command with a form | [commands/kickMember.js](commands/kickMember.js) and `openActionModal` in [lib/moderation.js](lib/moderation.js) |
 | Fetching an address a user typed in | `safeFetch` in [lib/safeFetch.js](lib/safeFetch.js), always (WorkingAgreements.md § 6) |
 | Something scheduled that must survive restarts | temporary bans in [lib/moderation.js](lib/moderation.js), or [lib/giveaways.js](lib/giveaways.js) |

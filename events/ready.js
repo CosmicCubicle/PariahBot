@@ -10,6 +10,7 @@ const { startPoller: startInstagramAlerts } = require('../lib/instagramAlerts');
 const { syncAll: syncBannedWords } = require('../lib/bannedWords');
 const { scheduleAllTempBans } = require('../lib/moderation');
 const { startPoller: startRssAlerts } = require('../lib/rssAlerts');
+const { startDashboard } = require('../lib/dashboard/server');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -42,6 +43,7 @@ module.exports = {
 		startStreamAlerts(client);
 		startInstagramAlerts(client);
 		startRssAlerts(client);
+		startDashboard(client);
 		await syncBannedWords(client);
 	},
 };
