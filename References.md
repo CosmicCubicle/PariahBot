@@ -21,6 +21,9 @@ something similar.
     configuring the bot inside Discord
   - [Commands](https://github.com/CosmicCubicle/PariahBot/wiki/Commands):
     every subcommand and option
+  - [Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions):
+    every permission and intent, which feature needs it, and who can run
+    each command (checked on every docs update, see CodeStandards.md § 12)
   - [Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words):
     the lists, custom words and how the AutoMod rules are managed
   - [Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts):

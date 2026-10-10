@@ -241,13 +241,16 @@ scoped to `interaction.guildId`.
   them per user or per channel.
 - The bot's role must be above any role it grants or anyone it removes. Check
   this up front and name the fix in the error.
-- The wiki's [Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)
-  page has two permission sets: **Recommended** (the standard invite) and
-  **Required** (the ones the code actually uses). If a feature needs a new
-  bot permission:
-  - add it to the **Required** table, with the feature that needs it
+- The wiki's [Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions)
+  page is the one place that lists every permission and intent, which
+  feature uses each, and who can run each command. It has two permission
+  sets: **Recommended** (the standard invite) and **Required** (the ones the
+  code actually uses). If a feature needs a new bot permission:
+  - add it to the **Required** table and the **By feature** table, with the
+    feature that needs it
   - make sure the **Recommended** set includes it too
-  - recalculate both invite numbers on that page
+  - recalculate both invite numbers on the
+    [Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup) page
 - The bot's permissions belong on its own **PariahBot** role, the one the
   invite creates. Never ask server admins to give it a shared "Bots" role
   instead.
@@ -310,7 +313,16 @@ A feature isn't done until the docs match it:
 - **README:** the features list and the command table (new command or
   subcommand).
 - **Wiki:** detailed setup, the full command reference, bot permissions,
-  troubleshooting. The wiki is a separate repo, so push it alongside the PR
+  troubleshooting.
+- **Every docs update checks the wiki's Permissions page** against the
+  change, not just changes that obviously touch permissions. Update it when
+  a change:
+  - adds or removes a permission or gateway intent
+  - moves a feature onto a different permission
+  - adds a feature or command
+  - changes who can run a command
+
+  Say in the PR description that it was checked. The wiki is a separate repo, so push it alongside the PR
   and say so in the PR description.
 - **WorkingAgreements.md / ProjectContext.md:** any new invariant, any new exception to the state rule, and
   any new destructive path.
