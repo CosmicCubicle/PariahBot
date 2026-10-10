@@ -1,12 +1,11 @@
 const { SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const feedStore = require('../state/rssFeeds');
 const { fetchFeed } = require('../lib/rss');
-const { MESSAGE_PLACEHOLDERS, postItem } = require('../lib/rssAlerts');
-const { MAX_TEMPLATE_LENGTH, unknownPlaceholders } = require('../lib/alertContent');
+const { MAX_FEEDS_PER_GUILD, postItem, followFeed } = require('../lib/rssAlerts');
+const { MAX_TEMPLATE_LENGTH } = require('../lib/alertContent');
 const { isAdmin, requireAdmin } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
-const MAX_FEEDS_PER_GUILD = 25;
 const MAX_URL_LENGTH = 500;
 const MAX_AUTOCOMPLETE_CHOICES = 25;
 // Discord caps autocomplete choice names and values at 100 characters.
@@ -29,46 +28,11 @@ async function handleAdd(interaction) {
 	const pingRole = interaction.options.getRole('ping_role');
 	const message = interaction.options.getString('message')?.trim() || null;
 
-	// Checked up front so a missing permission surfaces now, to the admin,
-	// rather than as a silent failure on the first new item.
-	const needed = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
-	if (!channel.permissionsFor(interaction.guild.members.me).has(needed)) {
-		throw new Error(`I can't post embeds in ${channel} — give me View Channel, Send Messages and Embed Links there, then run this again.`);
-	}
-	if (message) {
-		const unknown = unknownPlaceholders(message, MESSAGE_PLACEHOLDERS);
-		if (unknown.length) throw new Error(`I don't know ${unknown.join(', ')}. You can use {feed}, {title}, {url} and {role}.`);
-	}
-	if (feedStore.countFeeds(interaction.guildId) >= MAX_FEEDS_PER_GUILD) {
-		throw new Error(`This server already follows ${MAX_FEEDS_PER_GUILD} feeds, the most it can. Remove one with \`/rss remove\` first.`);
-	}
-	const existing = feedStore.getFeedByUrl(interaction.guildId, url);
-	if (existing) {
-		throw new Error(`This server already follows that feed (**${existing.title}**, posting in <#${existing.channelId}>). Remove it first to change its settings.`);
-	}
-
 	// Fetching is a network round trip that can outlast Discord's 3-second
-	// window. It also proves the address really is a feed, now rather than
-	// silently never posting.
+	// window. followFeed also proves the address really is a feed, now rather
+	// than silently never posting.
 	await interaction.deferReply({ ephemeral: true });
-	let parsed;
-	try {
-		parsed = await fetchFeed(url);
-	} catch (error) {
-		throw new Error(`Couldn't add that feed: ${error.message}`);
-	}
-
-	// Everything it lists now is recorded as seen, so only items published
-	// from here on are posted.
-	feedStore.addFeed({
-		guildId: interaction.guildId,
-		url,
-		title: parsed.title,
-		channelId: channel.id,
-		roleId: pingRole?.id,
-		message,
-		itemIds: parsed.items.map((item) => item.id),
-	});
+	const parsed = await followFeed(interaction.guild, { url, channel, roleId: pingRole?.id ?? null, message });
 
 	const lines = [`Following **${parsed.title}** — new items will post in ${channel}${pingRole ? `, pinging ${pingRole}` : ''}.`];
 	lines.push(parsed.items.length

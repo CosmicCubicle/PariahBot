@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('disc
 const bannedWordStore = require('../state/bannedWords');
 const guildSettings = require('../state/guildSettings');
 const { LISTS } = require('../lib/bannedWordLists');
-const { MAX_CUSTOM_WORDS, normalizeWord, requireManageGuild, syncGuild } = require('../lib/bannedWords');
+const { MAX_CUSTOM_WORDS, addCustomWords, normalizeWord, requireManageGuild, syncGuild } = require('../lib/bannedWords');
 const { isAdmin, requireAdmin } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
@@ -108,24 +108,7 @@ async function handleListRemove(interaction) {
 async function handleWordAdd(interaction) {
 	requireAdmin(interaction);
 
-	const raw = interaction.options.getString('words').split(',').filter((part) => part.trim());
-	const words = [...new Set(raw.map(normalizeWord).filter(Boolean))];
-	const rejected = raw.filter((part) => !normalizeWord(part));
-	if (words.length === 0) {
-		throw new Error('None of those can be used. Each word or phrase must be 1–60 characters and not only `*`. Separate several with commas.');
-	}
-
-	const existing = new Set(bannedWordStore.listWords(interaction.guildId));
-	const newCount = words.filter((word) => !existing.has(word)).length;
-	if (existing.size + newCount > MAX_CUSTOM_WORDS) {
-		throw new Error(`That would make ${existing.size + newCount} custom words, and the limit is ${MAX_CUSTOM_WORDS} (Discord allows 1,000 per rule, shared with the ready-made lists). Remove some with \`/bannedwords word remove\` first.`);
-	}
-
-	const added = bannedWordStore.addWords(interaction.guildId, words);
-	const parts = [`Added ${added} word${added === 1 ? '' : 's'}.`];
-	if (added < words.length) parts.push(`${words.length - added} ${words.length - added === 1 ? 'was' : 'were'} already on the list.`);
-	if (rejected.length) parts.push(`Skipped ${rejected.length} that ${rejected.length === 1 ? 'was' : 'were'} empty, only \`*\`, or over 60 characters.`);
-	await applyChange(interaction, parts.join(' '));
+	await applyChange(interaction, addCustomWords(interaction.guildId, interaction.options.getString('words')));
 }
 
 async function handleWordRemove(interaction) {
