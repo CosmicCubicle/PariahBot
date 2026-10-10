@@ -161,7 +161,9 @@ function renderNav() {
 	$('nav').replaceChildren(
 		navButton('Status', state.view === 'status', () => showStatus(), h('span', { class: 'icon' }, '●')),
 		h('h3', {}, `Servers (${state.guilds.length})`),
-		state.guilds.map((guild) => navButton(
+		// Spread: replaceChildren takes nodes, not an array — an array is
+		// turned into the text "[object HTMLButtonElement],…".
+		...state.guilds.map((guild) => navButton(
 			guild.name,
 			state.view === 'guild' && state.guild?.id === guild.id,
 			() => openGuild(guild.id),
