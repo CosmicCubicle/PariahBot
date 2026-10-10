@@ -1,0 +1,37 @@
+name: Tests
+
+# Runs the node:test suite on every PR and on main. Unlike linked-issue.yml
+# this is a plain `pull_request` workflow: it *does* check out and run the PR's
+# code, which is the whole point, so it must never be given a writable token
+# or access to secrets.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # This name is the required status check in the MainProtected ruleset —
+    # renaming it means updating the ruleset too, or every PR is blocked.
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the engines floor in package.json. better-sqlite3 is pinned
+          # to a version with prebuilt binaries for this line, so `npm ci`
+          # doesn't need a compiler here (see the comment in state/db.js).
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The suite points state/db.js at a temp file per test file, so no real
+      # database is created and no bot token is needed.
+      - run: npm test

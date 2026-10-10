@@ -115,6 +115,7 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `lib/dashboard/` | The admin dashboard's web server, Discord sign-in and API. |
 | `dashboard/` | The admin dashboard's page (static HTML, CSS and JS, no build step). |
 | `deploy/` | Host setup script, including the optional admin dashboard. |
+| `test/` | Automated tests, run with `npm test`. |
 
 ## Contributing
 
@@ -169,6 +170,8 @@ A PR can merge into `main` only when all of these pass:
 
 - **Linked issue check:** the branch name follows the format and names an
   existing, open issue.
+- **Tests:** `npm test` passes. Run it locally first — it needs no token,
+  network or database.
 - **Code owner review:** one approval from a
   [code owner](.github/CODEOWNERS), with every review thread resolved.
 - **CodeQL:** no code-scanning errors, and no security alerts rated high or
