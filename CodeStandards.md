@@ -403,3 +403,12 @@ that area.
   `voice-hub-prune`, `giveaway:enter:`). Existing ones can't be renamed
   without breaking messages already posted, so leave them. New ones follow
   §5.
+- **`fetchPinned()` in `lib/autoDelete.js`** is deprecated in discord.js,
+  which logs a `DeprecationWarning` at startup. Its replacement,
+  `fetchPins()`, returns a different shape (paginated), so the switch needs
+  testing against real pinned messages rather than a rename.
+- **The deleted-hub Prune and Restore buttons** (`lib/hubDesync.js`) check
+  Manage Channels, not `isAdmin` (§8). They can be clicked from a DM, where
+  only Discord's permission bits are available without fetching the
+  member's roles. Move them to `isAdmin` when that code is next touched,
+  and update the wiki's Permissions page with it.

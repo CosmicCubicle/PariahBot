@@ -40,7 +40,7 @@ Requires **Node.js 24+** and a Discord application (token + application ID).
 git clone https://github.com/CosmicCubicle/PariahBot.git
 cd PariahBot
 npm install
-cp .env.example hom.env     # then fill in DISCORD_TOKEN and CLIENT_ID
+cp .env.example hom.env     # then fill in DISCORD_TOKEN, CLIENT_ID and (for testing) GUILD_ID
 npm run deploy              # register slash commands
 npm start
 ```
@@ -84,7 +84,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
-| `/mod` | (Admin) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`, `remove-case`, and `config` for automatic timeouts and the ban appeal note. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
+| `/mod` | (Admin) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`, `remove-case`, `config escalation`/`escalation-off`, `config appeal-note`/`appeal-note-clear`, `config show`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
 | `/bannedwords` | (Admin) Banned words via Discord AutoMod: `enable`, `disable`, `list add`/`remove`, `word add`/`remove`, `status`. |
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |

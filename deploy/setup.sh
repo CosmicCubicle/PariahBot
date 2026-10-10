@@ -16,9 +16,11 @@ CONFIG_FILE="$INSTALL_DIR/hom.env"
 SERVICE_FILE=/etc/systemd/system/pariahbot.service
 SYNC_FILE=/usr/local/sbin/pariahbot-sync
 
-# Install native build tools, media support, Git, and the utilities needed by NVM.
+# Install Git and what NVM needs to download Node. No compiler: better-sqlite3
+# is pinned to a release with prebuilt binaries (see state/db.js), and nothing
+# else the bot uses is native.
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential ca-certificates curl ffmpeg git python3
+DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git
 
 if [ "$SOURCE_DIR" != "$INSTALL_DIR" ]; then
 	mkdir -p "$INSTALL_DIR"
@@ -84,6 +86,25 @@ ask_token() {
 	fi
 }
 
+# The guild ID is optional: set, commands register to that one server
+# instantly (for testing); empty, they register to every server the bot is in
+# (for production). Enter keeps the current value; "none" clears it. A value
+# that isn't a server ID (e.g. a stray space) counts as empty.
+ask_guild_id() {
+	local current=$1 value
+	[[ "$current" =~ ^[0-9]{17,20}$ ]] || current=''
+	while :; do
+		read -r -p "Test server ID for instant command registration — leave empty in production [${current:-none}]: " value
+		value=${value:-$current}
+		[ "$value" = none ] && value=''
+		if [ -z "$value" ] || [[ "$value" =~ ^[0-9]{17,20}$ ]]; then
+			printf '%s' "$value"
+			return
+		fi
+		printf 'A server ID is 17–20 digits. Leave it empty to register commands everywhere.\n' >&2
+	done
+}
+
 # Prompt privately for a secret, keeping the current one when Enter is pressed.
 ask_secret() {
 	local prompt=$1 current=$2 value
@@ -108,7 +129,7 @@ ask_yes_no() {
 # Collect the Discord credentials used for command registration and bot login.
 TOKEN=$(ask_token "$(get_value DISCORD_TOKEN)")
 CLIENT_ID=$(ask_required 'Discord application/client ID' "$(get_value CLIENT_ID)")
-GUILD_ID=$(ask_required 'Discord guild ID (used for instant command registration)' "$(get_value GUILD_ID)")
+GUILD_ID=$(ask_guild_id "$(get_value GUILD_ID)")
 
 # Optional admin dashboard: a web page where the bot's owner sees its status
 # and changes settings. It listens on this machine only (127.0.0.1); other
