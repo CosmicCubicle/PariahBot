@@ -19,13 +19,14 @@ several single-purpose bots with one:
 - giveaways
 - activity levels
 - Twitch and YouTube alerts
+- Instagram post alerts
 - admin alerts
 
 Slash commands are loaded automatically from `commands/`.
 
 The only outside services the bot calls are Twitch's and YouTube's APIs, for
-stream and upload alerts. Each platform is optional and stays off unless the
-host sets its credentials.
+stream and upload alerts, and Instagram's Graph API, for post alerts. Each
+platform is optional and stays off unless the host sets its credentials.
 
 - **Both are polled** (Twitch every minute, YouTube every two minutes)
   rather than using push notifications (Twitch EventSub, YouTube
@@ -50,6 +51,22 @@ host sets its credentials.
   - **Fragility:** it isn't an official API. If YouTube changes the page,
     this check quietly finds nothing and alerts fall back to what the feed
     can see.
+- **Instagram has no free public feed**, so it goes through the Graph API's
+  Business Discovery, polled every 10 minutes. With a token for the host's
+  own Business/Creator account, it reads any public Business or Creator
+  account's recent posts by username, one call per account. The trade-offs:
+  - **Personal and age-gated accounts can't be followed**, and stories
+    aren't available.
+  - **The token is a System User token**, from the host's Meta business
+    portfolio. It never expires and its data access never lapses, so it
+    never needs renewing. A Page token made from a person's login looks
+    equivalent but isn't: its data access lapses after 90 days, and
+    renewing it needs that person to re-approve the app in a browser. The
+    bot never refreshes the token, so it never writes a live secret into
+    the database (see WorkingAgreements.md § 1).
+  - **Lookups are by username.** A renamed account has to be re-added. The
+    stored account ID stops a username someone else took over from posting
+    a stranger's posts.
 - **Announcement records are kept until 30 days after a stream was last
   seen**, not 30 days after it was announced. Otherwise a stream running
   longer than a month would be announced again.
@@ -128,6 +145,10 @@ description should say so.
 - The streamer list has two sources that work side by side: members with the
   streamer role self-link, and admins add channels directly. Admin-added
   channels alert regardless of roles, and don't need a member in the server.
+- Social alerts (#18): Instagram is done (#37), with its own channel and
+  `/instagram` command rather than a `/streamers` platform, because posts
+  aren't streams and don't involve the streamer role. Another social
+  platform would follow the Instagram pattern.
 - Every YouTube upload is announced, including Shorts. There's no per-channel
   or per-kind filter yet, and uploads go to the same channel as live alerts.
 - Code that doesn't meet the standards yet is listed in

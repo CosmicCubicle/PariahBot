@@ -21,7 +21,19 @@ something similar.
     configuring the bot inside Discord
   - [Commands](https://github.com/CosmicCubicle/PariahBot/wiki/Commands):
     every subcommand and option
+  - [Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts):
+    Twitch and YouTube credentials, setup and quota
+  - [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts):
+    the Meta app, System User token and server setup, step by step
   - [Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)
+
+## Outside APIs
+
+- **Instagram Graph API, Business Discovery** (`lib/instagram.js`):
+  [Business Discovery](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-facebook-login/business-discovery.md)
+  and [getting started with Facebook Login](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-facebook-login/get-started.md).
+  Meta's app dashboard changes often. When it no longer matches the
+  wiki's Instagram Alerts page, update the page.
 
 ## Bots features are modeled on
 

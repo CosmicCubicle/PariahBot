@@ -3,7 +3,7 @@
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
 auto-deletion, anti-spam, giveaways, activity levels, Twitch and YouTube
-alerts, and admin alerting. Built
+alerts, Instagram post alerts, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
 
@@ -20,6 +20,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
 - **Twitch and YouTube alerts** — members with the streamer role link their own Twitch or YouTube channel, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role, when any of them goes live, and when a YouTube channel uploads a new video. Each platform needs its API credentials in `hom.env`.
+- **Instagram post alerts** — admins follow any number of public Instagram Business or Creator accounts, and the bot shares each new post and reel in a dedicated channel, optionally pinging a role. Needs a Meta System User token in `hom.env`; see the wiki's [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts) page.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
@@ -52,6 +53,8 @@ Both paths are covered in detail in the wiki:
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
+- **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
+- **[Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts)** — the Meta app, System User token and setup
 - **[Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)** — when something silently does nothing
 
 > ⚠️ **Two things that trip up most setups:** the bot's role must sit **above**
@@ -76,6 +79,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Admin): `add`, `channel`, `disable`, `remove`, `list`. |
+| `/instagram` | (Admin) Instagram post alerts in a dedicated channel: `add`, `channel`, `disable`, `remove`, `list`. |
 | `/giveaway` | (Admin) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:
