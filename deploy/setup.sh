@@ -131,10 +131,11 @@ TOKEN=$(ask_token "$(get_value DISCORD_TOKEN)")
 CLIENT_ID=$(ask_required 'Discord application/client ID' "$(get_value CLIENT_ID)")
 GUILD_ID=$(ask_guild_id "$(get_value GUILD_ID)")
 
-# Optional admin dashboard: a web page where the bot's owner sees its status
-# and changes settings. It listens on this machine only (127.0.0.1); other
-# computers reach it through an SSH tunnel. Sign-in is with Discord, which
-# needs the application's client secret. See the wiki's Admin Dashboard page.
+# Optional admin dashboard: a web page where server admins change settings,
+# and the bot's owner also sees its status. It listens on this machine only
+# (127.0.0.1); other computers reach it through an SSH tunnel, or a public
+# address served by a Cloudflare Tunnel. Sign-in is with Discord, which needs
+# the application's client secret. See the wiki's Admin Dashboard page.
 DASHBOARD_PORT_VALUE=$(get_value DASHBOARD_PORT)
 DISCORD_CLIENT_SECRET_VALUE=$(get_value DISCORD_CLIENT_SECRET)
 DASHBOARD_PUBLIC_URL_VALUE=$(get_value DASHBOARD_PUBLIC_URL)
@@ -146,7 +147,7 @@ if [ -n "$DASHBOARD_PORT_VALUE" ]; then
 	elif ask_yes_no 'Change its settings?'; then
 		CONFIGURE_DASHBOARD=yes
 	fi
-elif ask_yes_no 'Set up the admin dashboard (a web page for the bot owner)?'; then
+elif ask_yes_no 'Set up the admin dashboard (a web page for server admins)?'; then
 	CONFIGURE_DASHBOARD=yes
 fi
 if [ "$CONFIGURE_DASHBOARD" = yes ]; then
@@ -158,9 +159,18 @@ if [ "$CONFIGURE_DASHBOARD" = yes ]; then
 	printf '\nIn the Discord Developer Portal, open your application -> OAuth2.\n'
 	printf 'Copy the Client Secret (Reset Secret if none is shown).\n'
 	DISCORD_CLIENT_SECRET_VALUE=$(ask_secret 'Discord client secret' "$DISCORD_CLIENT_SECRET_VALUE")
-	if [ -n "$DASHBOARD_PUBLIC_URL_VALUE" ]; then
-		DASHBOARD_PUBLIC_URL_VALUE=$(ask_required 'Address you open the dashboard at' "$DASHBOARD_PUBLIC_URL_VALUE")
-	fi
+	printf '\nIf admins will reach it at a public address, such as one served by a\n'
+	printf 'Cloudflare Tunnel (https://pariahbot.example.com), enter it. Leave it blank\n'
+	printf 'to open it on this machine or through an SSH tunnel.\n'
+	while :; do
+		read -r -p "Public address${DASHBOARD_PUBLIC_URL_VALUE:+ [$DASHBOARD_PUBLIC_URL_VALUE, or - to clear]}: " PUBLIC_URL_INPUT
+		case "$PUBLIC_URL_INPUT" in
+			'') break ;;
+			-) DASHBOARD_PUBLIC_URL_VALUE=''; break ;;
+			http://*|https://*) DASHBOARD_PUBLIC_URL_VALUE=${PUBLIC_URL_INPUT%/}; break ;;
+			*) printf 'Start it with https:// (or http://).\n' >&2 ;;
+		esac
+	done
 fi
 
 # Written with the bot user's Node (installed through NVM above): root may
@@ -268,13 +278,27 @@ Admin dashboard: on, listening on 127.0.0.1:$DASHBOARD_PORT_VALUE (this machine 
 
   1. In the Discord Developer Portal -> your application -> OAuth2 -> Redirects,
      add exactly:  ${DASHBOARD_URL%/}/auth/callback
+EOF
+	if [ -n "$DASHBOARD_PUBLIC_URL_VALUE" ]; then
+		cat <<EOF
+  2. Point $DASHBOARD_URL at this machine with a Cloudflare Tunnel:
+     create the tunnel, run its "sudo cloudflared service install <token>"
+     here, and add a public hostname with service HTTP, localhost:$DASHBOARD_PORT_VALUE.
+     See the wiki's Admin Dashboard page (Cloudflare Tunnel).
+EOF
+	else
+		cat <<EOF
   2. On this machine, open $DASHBOARD_URL
      From another computer, open an SSH tunnel first:
        ssh -L $DASHBOARD_PORT_VALUE:localhost:$DASHBOARD_PORT_VALUE $BOT_USER@$(hostname)
      then open $DASHBOARD_URL in that computer's browser.
-  3. Sign in with Discord. Server admins see the servers they admin; the
+EOF
+	fi
+	cat <<EOF
+  3. In each Discord server, give your admins access:
+       /setup admin-role add role:@YourAdminRole
+     Members with that role, or Discord's Administrator permission, can sign
+     in and see that server. Mod roles don't include the dashboard. The
      application's owner (or its team) sees every server.
-  For a public https:// address with no open ports, see the wiki's Admin
-  Dashboard page (Cloudflare Tunnel).
 EOF
 fi

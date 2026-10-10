@@ -58,7 +58,7 @@ Both paths are covered in detail in the wiki:
 - **[Feature guides](https://github.com/CosmicCubicle/PariahBot/wiki#features)** — a page per feature: how it works, setup, options and troubleshooting
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
-- **[Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard)** — turning on the web dashboard, signing in, and reaching it from another computer
+- **[Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard)** — turning it on, giving server admins access with `/setup admin-role`, and reaching it from anywhere through a Cloudflare Tunnel
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
 - **[Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words)** — the lists, custom words, exemptions and reporting
 - **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
