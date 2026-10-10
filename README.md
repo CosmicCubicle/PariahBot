@@ -3,7 +3,7 @@
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
 auto-deletion, anti-spam, banned words, moderation, giveaways, activity levels, Twitch and YouTube
-alerts, Instagram post alerts, and admin alerting. Built
+alerts, Instagram post alerts, RSS feeds, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
 
@@ -23,6 +23,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
 - **Twitch and YouTube alerts** — members with the streamer role link their own Twitch or YouTube channel, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role and with a custom message, when any of them goes live, and when a YouTube channel uploads a new video. Each platform needs its API credentials in `hom.env`.
 - **Instagram post alerts** — admins follow any number of public Instagram Business or Creator accounts, and the bot shares each new post and reel in a dedicated channel, optionally pinging a role and with a custom message. Needs a Meta System User token in `hom.env`; see the wiki's [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts) page.
+- **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
@@ -86,6 +87,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Admin): `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/rss` | (Admin) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
 | `/instagram` | (Admin) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/giveaway` | (Admin) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
@@ -115,7 +117,7 @@ rules apply to both.
 
 | File | What it covers |
 | --- | --- |
-| [WorkingAgreements.md](WorkingAgreements.md) | The hard rules: state lives in SQLite, every lookup stays scoped to its server, the safeguards on banning and kicking, and never publishing a real bot instance's invite link. These override everything else. |
+| [WorkingAgreements.md](WorkingAgreements.md) | The hard rules: state lives in SQLite, every lookup stays scoped to its server, the safeguards on banning and kicking, never publishing a real bot instance's invite link, and fetching user-supplied addresses only through the SSRF-safe fetcher. These override everything else. |
 | [CodeStandards.md](CodeStandards.md) | How code is written, structured, verified and shipped. |
 | [ProjectContext.md](ProjectContext.md) | What the bot is, the constraints it runs under, and past decisions. |
 | [Team.md](Team.md) · [References.md](References.md) | Who maintains the repo, and which existing files to copy from. |

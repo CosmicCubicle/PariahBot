@@ -22,13 +22,24 @@ several single-purpose bots with one:
 - activity levels
 - Twitch and YouTube alerts
 - Instagram post alerts
+- RSS and Atom feeds
 - admin alerts
 
 Slash commands are loaded automatically from `commands/`.
 
-The only outside services the bot calls are Twitch's and YouTube's APIs, for
-stream and upload alerts, and Instagram's Graph API, for post alerts. Each
-platform is optional and stays off unless the host sets its credentials.
+The bot calls three outside services, each optional and off unless the host
+sets its credentials:
+- Twitch's and YouTube's APIs, for stream and upload alerts
+- Instagram's Graph API, for post alerts
+
+It also fetches **whatever RSS or Atom feed addresses** server admins add
+with `/rss`. That needs no credentials, so it's always on. Because those
+addresses are user-supplied, they're only ever fetched through
+`lib/safeFetch.js`, which won't connect to the host's own network (see
+[WorkingAgreements.md § 6](WorkingAgreements.md#6-never-fetch-a-user-supplied-address-directly)).
+Feeds are parsed without an XML library, like YouTube's. They're checked
+every 10 minutes, and each URL is fetched once however many servers follow
+it.
 
 - **Both are polled** (Twitch every minute, YouTube every two minutes)
   rather than using push notifications (Twitch EventSub, YouTube
