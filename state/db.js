@@ -247,6 +247,24 @@ db.exec(`
 		PRIMARY KEY (feed_id, item_id)
 	);
 
+	-- Every moderation action, for /mod history: what /mod, the right-click
+	-- actions, warning escalation, temporary ban expiry and the honeypot did,
+	-- to whom and why. moderator_id is null when the bot acted on its own (the
+	-- honeypot, an escalation, a temporary ban ending). Kept indefinitely —
+	-- it's the server's record — but /mod remove-case can delete one, which
+	-- removes the record without undoing the action. See lib/moderation.js.
+	CREATE TABLE IF NOT EXISTS mod_cases (
+		id               INTEGER PRIMARY KEY AUTOINCREMENT,
+		guild_id         TEXT NOT NULL,
+		user_id          TEXT NOT NULL,
+		moderator_id     TEXT,
+		action           TEXT NOT NULL,
+		reason           TEXT,
+		duration_seconds INTEGER,
+		created_at       TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_mod_cases_member ON mod_cases (guild_id, user_id, created_at);
+
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
@@ -353,6 +371,23 @@ if (!hasColumn('guild_settings', 'stream_alert_message')) {
 }
 if (!hasColumn('guild_settings', 'instagram_message')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_message TEXT');
+}
+
+// /mod config. Warning escalation is on while warn_escalation_count is set:
+// that many warnings within warn_escalation_window_seconds times the member
+// out for warn_escalation_timeout_seconds. ban_appeal_note is an optional
+// line added to every ban DM.
+if (!hasColumn('guild_settings', 'warn_escalation_count')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN warn_escalation_count INTEGER');
+}
+if (!hasColumn('guild_settings', 'warn_escalation_window_seconds')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN warn_escalation_window_seconds INTEGER');
+}
+if (!hasColumn('guild_settings', 'warn_escalation_timeout_seconds')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN warn_escalation_timeout_seconds INTEGER');
+}
+if (!hasColumn('guild_settings', 'ban_appeal_note')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN ban_appeal_note TEXT');
 }
 
 // /bannedwords on or off. A separate flag rather than "a set value is on",

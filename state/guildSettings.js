@@ -70,6 +70,14 @@ function getGuildSettings(guildId) {
 		instagramRoleId: row?.instagram_role_id ?? null,
 		instagramMessage: row?.instagram_message ?? null,
 		bannedWordsEnabled: !!row?.banned_words_enabled,
+		warnEscalation: row?.warn_escalation_count
+			? {
+				count: row.warn_escalation_count,
+				windowSeconds: row.warn_escalation_window_seconds,
+				timeoutSeconds: row.warn_escalation_timeout_seconds,
+			}
+			: null,
+		banAppealNote: row?.ban_appeal_note ?? null,
 	};
 }
 
@@ -287,6 +295,37 @@ function setInstagramMessage(guildId, message) {
 	upsertInstagramMessageStmt.run({ guildId, message: message ?? null });
 }
 
+// /mod config escalation and escalation-off — see lib/moderation.js. null
+// turns escalation off; all three columns are set or cleared together.
+const upsertWarnEscalationStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, warn_escalation_count, warn_escalation_window_seconds, warn_escalation_timeout_seconds)
+	VALUES (@guildId, @count, @windowSeconds, @timeoutSeconds)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		warn_escalation_count = excluded.warn_escalation_count,
+		warn_escalation_window_seconds = excluded.warn_escalation_window_seconds,
+		warn_escalation_timeout_seconds = excluded.warn_escalation_timeout_seconds
+`);
+
+function setWarnEscalation(guildId, escalation) {
+	upsertWarnEscalationStmt.run({
+		guildId,
+		count: escalation?.count ?? null,
+		windowSeconds: escalation?.windowSeconds ?? null,
+		timeoutSeconds: escalation?.timeoutSeconds ?? null,
+	});
+}
+
+// /mod config appeal-note. null removes it.
+const upsertBanAppealNoteStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, ban_appeal_note)
+	VALUES (@guildId, @note)
+	ON CONFLICT(guild_id) DO UPDATE SET ban_appeal_note = excluded.ban_appeal_note
+`);
+
+function setBanAppealNote(guildId, note) {
+	upsertBanAppealNoteStmt.run({ guildId, note: note ?? null });
+}
+
 // /bannedwords on or off — see lib/bannedWords.js. Turning it off keeps the
 // guild's lists and words (state/bannedWords.js).
 const upsertBannedWordsEnabledStmt = db.prepare(`
@@ -340,6 +379,8 @@ module.exports = {
 	clearInstagramAlerts,
 	setStreamAlertMessage,
 	setInstagramMessage,
+	setWarnEscalation,
+	setBanAppealNote,
 	enableBannedWords,
 	disableBannedWords,
 	listBannedWordsGuilds,
