@@ -172,3 +172,27 @@ wiki's page history).
   text for a real application ID (a 17–20 digit number) before pushing.
 - If one is pushed by mistake, tell a maintainer rather than just deleting
   it. Getting it out of the history needs a rewrite, which is their call.
+
+## 6. Never fetch a user-supplied address directly
+
+Any address that comes from a user, rather than from the code (a `/rss`
+feed URL today), is fetched only through
+[lib/safeFetch.js](lib/safeFetch.js). Never use `fetch`, `http.get` or a
+library on it directly.
+
+**Why:** PariahBot is self-hosted, often on a home network next to routers,
+NAS boxes and admin panels. Any admin of any server the bot is in can type
+an address. Fetched directly, `http://192.168.1.1/` would have the bot read
+an internal page and post it into Discord (server-side request forgery).
+
+**How to apply:**
+- `safeFetch` refuses loopback, private, link-local, carrier-grade NAT,
+  multicast and IPv6 local addresses.
+  - It checks them **inside the connection**, on every address DNS returns,
+    and again on every redirect.
+  - Checking only when an address is added isn't enough: DNS can be
+    changed afterwards to point at an internal address.
+- It also caps the size and time of every response. Keep both checks if
+  you change it.
+- Fixed addresses written in the code (the Twitch, YouTube and Instagram
+  APIs) don't need it.

@@ -5,7 +5,8 @@ conventions the existing code already follows. Where a rule exists because
 something broke in production, the reason is given so the rule isn't
 "simplified" away later.
 
-The hard rules (state, guild isolation, destructive actions, never publishing
+The hard rules (state, guild isolation, destructive actions, fetching
+user-supplied addresses safely, never publishing
 a real bot instance) are in
 [WorkingAgreements.md](WorkingAgreements.md). If the two ever disagree, WorkingAgreements.md wins and
 this file should be fixed.
@@ -283,6 +284,7 @@ can only set a permission bit it already holds (see
   - `0x9146ff` (Twitch purple): Twitch alerts
   - `0xff0033` (YouTube red): YouTube alerts
   - `0xe1306c` (Instagram pink): Instagram alerts
+  - `0xf26522` (RSS orange): RSS feed items
 - Discord's limits are real and they throw when exceeded: embed field names
   ≤ 256 characters, values ≤ 1024, ≤ 25 select-menu options. Put
   growing content in field *values*, and check counts before adding.
