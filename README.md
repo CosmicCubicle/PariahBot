@@ -52,6 +52,7 @@ Both paths are covered in detail in the wiki:
 
 - **[Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)** — Discord application, permissions, invite link
 - **[Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions)** — every permission the bot needs and which feature it's for
+- **[Feature guides](https://github.com/CosmicCubicle/PariahBot/wiki#features)** — a page per feature: how it works, setup, options and troubleshooting
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
