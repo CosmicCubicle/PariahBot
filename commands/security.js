@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const guildSettings = require('../state/guildSettings');
-const { requireAdmin } = require('../lib/permissions');
+const { requireAdmin, staffRoleIds } = require('../lib/permissions');
 const { setupScreeningChannel, applyVisibilityLockdown } = require('../lib/captcha');
 const { setupHoneypotChannel } = require('../lib/honeypot');
 
@@ -56,7 +56,8 @@ async function handleCaptchaSetup(interaction) {
 	const channel = await resolveOrCreateChannel(interaction, DEFAULT_SCREENING_CHANNEL_NAME);
 	const { screeningMessageId } = guildSettings.getGuildSettings(interaction.guildId);
 
-	const modRoleIds = guildSettings.listModRoles(interaction.guildId);
+	// Staff — admin and mod roles — keep sight of the screening channel.
+	const modRoleIds = staffRoleIds(interaction.guildId);
 
 	const message = await setupScreeningChannel(channel, screeningMessageId, {
 		restrict: adjustVisibility,

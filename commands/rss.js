@@ -3,7 +3,7 @@ const feedStore = require('../state/rssFeeds');
 const { fetchFeed } = require('../lib/rss');
 const { MAX_FEEDS_PER_GUILD, postItem, followFeed } = require('../lib/rssAlerts');
 const { MAX_TEMPLATE_LENGTH } = require('../lib/alertContent');
-const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { isMod, requireMod } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_URL_LENGTH = 500;
@@ -21,7 +21,7 @@ function requireFeed(interaction) {
 }
 
 async function handleAdd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const url = interaction.options.getString('url').trim();
 	const channel = interaction.options.getChannel('channel');
@@ -46,14 +46,14 @@ async function handleAdd(interaction) {
 }
 
 async function handleRemove(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const feed = requireFeed(interaction);
 	feedStore.removeFeed(interaction.guildId, feed.id);
 	await interaction.reply({ content: `Stopped following **${feed.title}**.`, ephemeral: true });
 }
 
 async function handleTest(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const feed = requireFeed(interaction);
 
 	await interaction.deferReply({ ephemeral: true });
@@ -86,7 +86,7 @@ function describeFeed(feed) {
 }
 
 async function handleList(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const feeds = feedStore.listFeedsForGuild(interaction.guildId);
 
 	const embed = new EmbedBuilder()
@@ -122,7 +122,7 @@ module.exports = {
 		.setDescription('Post new items from RSS and Atom feeds into channels.')
 		.addSubcommand((sub) => sub
 			.setName('add')
-			.setDescription('(Admin) Follow a feed. Only items published from now on are posted.')
+			.setDescription('(Mod) Follow a feed. Only items published from now on are posted.')
 			.addStringOption((option) => option
 				.setName('url')
 				.setDescription('The feed address, e.g. https://example.com/feed')
@@ -144,15 +144,15 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription('(Admin) Stop following a feed.')
+			.setDescription('(Mod) Stop following a feed.')
 			.addStringOption((option) => feedOption(option, 'The feed to remove (pick from the suggestions)')))
 		.addSubcommand((sub) => sub
 			.setName('test')
-			.setDescription("(Admin) Post a feed's newest item now, to check how it looks.")
+			.setDescription("(Mod) Post a feed's newest item now, to check how it looks.")
 			.addStringOption((option) => feedOption(option, 'The feed to test (pick from the suggestions)')))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription("(Admin) Show this server's feeds, their channels, and any errors.")),
+			.setDescription("(Mod) Show this server's feeds, their channels, and any errors.")),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		const handler = HANDLERS[subcommand];
@@ -163,7 +163,7 @@ module.exports = {
 	// Not a security boundary on its own, which is why requireFeed also
 	// scopes by guild.
 	async autocomplete(interaction) {
-		if (!isAdmin(interaction.member, interaction.guildId)) {
+		if (!isMod(interaction.member, interaction.guildId)) {
 			await interaction.respond([]);
 			return;
 		}

@@ -2,7 +2,7 @@ const { SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } = 
 const instagramStore = require('../state/instagram');
 const guildSettings = require('../state/guildSettings');
 const instagram = require('../lib/instagram');
-const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { isMod, requireMod } = require('../lib/permissions');
 const { MESSAGE_PLACEHOLDERS } = require('../lib/instagramAlerts');
 const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
 
@@ -26,7 +26,7 @@ function channelNote(guildId) {
 }
 
 async function handleAdd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	requireConfigured();
 
 	// The lookup is a network round trip that can outlast Discord's 3-second
@@ -45,7 +45,7 @@ async function handleAdd(interaction) {
 }
 
 async function handleChannel(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const channel = interaction.options.getChannel('channel');
 	const pingRole = interaction.options.getRole('ping_role');
@@ -73,7 +73,7 @@ async function handleChannel(interaction) {
 const PREVIEW_VALUES = { name: '@someaccount', title: 'Behind the scenes from today', url: 'https://www.instagram.com/p/example/', platform: 'Instagram' };
 
 async function handleMessage(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const text = interaction.options.getString('text').trim();
 	const unknown = unknownPlaceholders(text, MESSAGE_PLACEHOLDERS);
@@ -97,13 +97,13 @@ async function handleMessage(interaction) {
 }
 
 async function handleClearMessage(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.setInstagramMessage(interaction.guildId, null);
 	await interaction.reply({ content: 'Custom message cleared — posts go back to just the ping.', ephemeral: true });
 }
 
 async function handleDisable(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.clearInstagramAlerts(interaction.guildId);
 	await interaction.reply({
 		content: 'Instagram alerts are off. The account list is kept — `/instagram channel` turns them back on.',
@@ -112,7 +112,7 @@ async function handleDisable(interaction) {
 }
 
 async function handleRemove(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	// Autocomplete submits the account ID; a typed value is a username, maybe
 	// with an @ or as a link. removeAccount matches either, within this guild.
@@ -129,7 +129,7 @@ async function handleRemove(interaction) {
 }
 
 async function handleList(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const { instagramChannelId, instagramRoleId, instagramMessage } = guildSettings.getGuildSettings(interaction.guildId);
 	const accounts = instagramStore.listAccountsForGuild(interaction.guildId);
@@ -168,7 +168,7 @@ module.exports = {
 		.setDescription('Share new Instagram posts from followed accounts in a dedicated channel.')
 		.addSubcommand((sub) => sub
 			.setName('add')
-			.setDescription('(Admin) Follow an Instagram account — it must be a public Business or Creator account.')
+			.setDescription('(Mod) Follow an Instagram account — it must be a public Business or Creator account.')
 			.addStringOption((option) => option
 				.setName('account')
 				.setDescription('Instagram username, @username or instagram.com link')
@@ -177,7 +177,7 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('channel')
-			.setDescription('(Admin) Choose the channel new posts go to, and optionally a role to ping.')
+			.setDescription('(Mod) Choose the channel new posts go to, and optionally a role to ping.')
 			.addChannelOption((option) => option
 				.setName('channel')
 				.setDescription('Channel for Instagram posts')
@@ -189,7 +189,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('message')
-			.setDescription('(Admin) Set custom text for posts. The ping role is still pinged.')
+			.setDescription('(Mod) Set custom text for posts. The ping role is still pinged.')
 			.addStringOption((option) => option
 				.setName('text')
 				.setDescription('Your text. Placeholders: {name} {title} {url} {platform} {role}')
@@ -197,13 +197,13 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('clear-message')
-			.setDescription('(Admin) Remove the custom text, so posts are just the ping again.'))
+			.setDescription('(Mod) Remove the custom text, so posts are just the ping again.'))
 		.addSubcommand((sub) => sub
 			.setName('disable')
-			.setDescription('(Admin) Stop sharing Instagram posts. The account list is kept.'))
+			.setDescription('(Mod) Stop sharing Instagram posts. The account list is kept.'))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription('(Admin) Stop following an Instagram account.')
+			.setDescription('(Mod) Stop following an Instagram account.')
 			.addStringOption((option) => option
 				.setName('account')
 				.setDescription('Account to remove (pick from the suggestions)')
@@ -211,7 +211,7 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription('(Admin) Show the Instagram settings and every followed account.')),
+			.setDescription('(Mod) Show the Instagram settings and every followed account.')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		const handler = HANDLERS[subcommand];
@@ -222,7 +222,7 @@ module.exports = {
 	// admins. Not a security boundary on its own (a typed value needn't come
 	// from here), which is why removeAccount also scopes by guild_id.
 	async autocomplete(interaction) {
-		if (!isAdmin(interaction.member, interaction.guildId)) {
+		if (!isMod(interaction.member, interaction.guildId)) {
 			await interaction.respond([]);
 			return;
 		}

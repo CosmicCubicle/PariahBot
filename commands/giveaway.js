@@ -2,10 +2,10 @@ const { randomUUID } = require('node:crypto');
 const { SlashCommandBuilder } = require('discord.js');
 const giveawayStore = require('../state/giveaways');
 const giveaways = require('../lib/giveaways');
-const { requireAdmin } = require('../lib/permissions');
+const { requireMod } = require('../lib/permissions');
 
 async function handleCreate(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const durationMinutes = interaction.options.getInteger('duration');
 	const giveaway = {
@@ -34,7 +34,7 @@ async function handleCreate(interaction) {
 }
 
 async function handleEnd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const id = interaction.options.getString('id');
 	const giveaway = giveawayStore.get(id, interaction.guildId);
@@ -56,13 +56,13 @@ module.exports = {
 		.setDescription('Create and manage server giveaways.')
 		.addSubcommand((sub) => sub
 			.setName('create')
-			.setDescription('(Admin) Start a giveaway in this channel.')
+			.setDescription('(Mod) Start a giveaway in this channel.')
 			.addStringOption((option) => option.setName('prize').setDescription('What the winner will receive').setRequired(true).setMaxLength(256))
 			.addIntegerOption((option) => option.setName('duration').setDescription('How many minutes the giveaway runs').setRequired(true).setMinValue(1).setMaxValue(43200))
 			.addIntegerOption((option) => option.setName('winners').setDescription('Number of winners').setRequired(true).setMinValue(1).setMaxValue(20)))
 		.addSubcommand((sub) => sub
 			.setName('end')
-			.setDescription('(Admin) End an active giveaway immediately.')
+			.setDescription('(Mod) End an active giveaway immediately.')
 			.addStringOption((option) => option.setName('id').setDescription('Giveaway ID from its creation reply').setRequired(true))),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();

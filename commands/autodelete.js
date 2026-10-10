@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
-const { requireAdmin } = require('../lib/permissions');
+const { requireMod } = require('../lib/permissions');
 const { parseDuration } = require('../lib/duration');
 
 function resolveTargetChannel(interaction) {
@@ -35,7 +35,7 @@ function describeConfig(config) {
 }
 
 async function handleSet(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const channel = resolveTargetChannel(interaction);
 	const count = interaction.options.getInteger('count');
@@ -68,7 +68,7 @@ async function handleSet(interaction) {
 }
 
 async function handleDisable(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const channel = resolveTargetChannel(interaction);
 	const removed = autoDeleteStore.removeChannel(channel.id);
@@ -81,7 +81,7 @@ async function handleDisable(interaction) {
 }
 
 async function handleStatus(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const channel = resolveTargetChannel(interaction);
 	const config = autoDeleteStore.getChannel(channel.id);
@@ -111,10 +111,10 @@ function channelOption(option, description) {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('autodelete')
-		.setDescription('(Admin) Automatically delete messages in a channel on a rolling basis.')
+		.setDescription('(Mod) Automatically delete messages in a channel on a rolling basis.')
 		.addSubcommand((sub) => sub
 			.setName('set')
-			.setDescription('(Admin) Enable or update auto-delete for a channel.')
+			.setDescription('(Mod) Enable or update auto-delete for a channel.')
 			.addChannelOption((option) => channelOption(option, 'Channel to configure (defaults to this channel)'))
 			.addIntegerOption((option) => option
 				.setName('count')
@@ -127,11 +127,11 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('disable')
-			.setDescription('(Admin) Turn off auto-delete for a channel.')
+			.setDescription('(Mod) Turn off auto-delete for a channel.')
 			.addChannelOption((option) => channelOption(option, 'Channel to disable (defaults to this channel)')))
 		.addSubcommand((sub) => sub
 			.setName('status')
-			.setDescription('(Admin) Show the auto-delete settings for a channel.')
+			.setDescription('(Mod) Show the auto-delete settings for a channel.')
 			.addChannelOption((option) => channelOption(option, 'Channel to check (defaults to this channel)'))),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();

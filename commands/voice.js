@@ -4,13 +4,13 @@ const guildSettings = require('../state/guildSettings');
 const { findDeadHubs, buildDeadHubMessage } = require('../lib/hubDesync');
 const voiceHubs = require('../lib/voiceHubs');
 const { OWNER_CONTROLS } = require('../lib/tempVoice');
-const { requireAdmin } = require('../lib/permissions');
+const { requireMod } = require('../lib/permissions');
 
 // Hub management for admins. The rules for adding, creating, removing and
 // editing hubs are in lib/voiceHubs.js, shared with the admin dashboard.
 
 async function handleAdd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const hub = interaction.options.getChannel('hub');
 	const category = await voiceHubs.resolveOrCreateCategory(interaction.guild, interaction.options.getString('category'));
 	voiceHubs.addExistingHub(interaction.guild, hub, category);
@@ -21,7 +21,7 @@ async function handleAdd(interaction) {
 }
 
 async function handleCreate(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const category = await voiceHubs.resolveOrCreateCategory(interaction.guild, interaction.options.getString('category'));
 	const hub = await voiceHubs.createHub(interaction.guild, interaction.options.getString('name'), category);
 	await interaction.reply({
@@ -34,7 +34,7 @@ async function handleCreate(interaction) {
 // make a typed value come from the suggestions, so lib/voiceHubs.js scopes
 // every lookup to this guild.
 async function handleRemove(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const hubId = interaction.options.getString('hub');
 	const result = await voiceHubs.removeHub(interaction.guild, hubId);
 	let content;
@@ -46,7 +46,7 @@ async function handleRemove(interaction) {
 }
 
 async function handleEdit(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const options = interaction.options;
 	const changes = {};
 	if (options.getString('name_template') !== null) changes.nameTemplate = options.getString('name_template');
@@ -75,7 +75,7 @@ async function handleEdit(interaction) {
 }
 
 async function handleOwnerControl(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const control = interaction.options.getString('control');
 	const allowed = interaction.options.getBoolean('allowed');
 	guildSettings.setOwnerControlAllowed(interaction.guildId, control, allowed);
@@ -87,19 +87,19 @@ async function handleOwnerControl(interaction) {
 
 // Kept for anyone used to them; the same switch as /voice owner-control kick.
 async function handleDisableOwnerKick(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.setOwnerControlAllowed(interaction.guildId, 'kick', false);
 	await interaction.reply({ content: 'Channel owners can no longer use `/vc kick`.', ephemeral: true });
 }
 
 async function handleEnableOwnerKick(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.setOwnerControlAllowed(interaction.guildId, 'kick', true);
 	await interaction.reply({ content: 'Channel owners can use `/vc kick` again.', ephemeral: true });
 }
 
 async function handleAudit(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	// Same detection lib/hubDesync.js's startup sweep uses, rendered as a direct
 	// reply instead of pushed to the configured alert destinations — for checking
@@ -119,7 +119,7 @@ async function handleAudit(interaction) {
 }
 
 async function handleList(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const hubs = voiceStore.listHubs(interaction.guildId);
 	const { ownerControls } = guildSettings.getGuildSettings(interaction.guildId);
@@ -201,7 +201,7 @@ module.exports = {
 		.setDescription('Create and manage temporary voice channels.')
 		.addSubcommand((sub) => sub
 			.setName('add')
-			.setDescription('(Admin) Register an existing voice channel as a hub.')
+			.setDescription('(Mod) Register an existing voice channel as a hub.')
 			.addChannelOption((option) => option
 				.setName('hub')
 				.setDescription('Voice channel users join to spawn a temp channel')
@@ -214,7 +214,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('create')
-			.setDescription('(Admin) Create a brand-new voice channel and register it as a hub.')
+			.setDescription('(Mod) Create a brand-new voice channel and register it as a hub.')
 			.addStringOption((option) => option
 				.setName('name')
 				.setDescription(`Name for the new hub channel (defaults to "${voiceHubs.DEFAULT_HUB_NAME}")`)
@@ -227,11 +227,11 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription('(Admin) Unregister a voice hub and delete its channel.')
+			.setDescription('(Mod) Unregister a voice hub and delete its channel.')
 			.addStringOption((option) => hubOption(option, 'The hub to remove')))
 		.addSubcommand((sub) => sub
 			.setName('edit')
-			.setDescription("(Admin) Change a hub's temp channel name, limits or category.")
+			.setDescription("(Mod) Change a hub's temp channel name, limits or category.")
 			.addStringOption((option) => hubOption(option, 'The hub to change'))
 			.addStringOption((option) => option
 				.setName('name_template')
@@ -252,7 +252,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('owner-control')
-			.setDescription('(Admin) Allow or stop a /vc control for channel owners.')
+			.setDescription('(Mod) Allow or stop a /vc control for channel owners.')
 			.addStringOption((option) => option
 				.setName('control')
 				.setDescription('Which owner control')
@@ -264,16 +264,16 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription("(Admin) List this server's voice hubs, their settings, and owner controls."))
+			.setDescription("(Mod) List this server's voice hubs, their settings, and owner controls."))
 		.addSubcommand((sub) => sub
 			.setName('audit')
-			.setDescription('(Admin) Check for hubs whose channel no longer exists, with options to prune or restore.'))
+			.setDescription('(Mod) Check for hubs whose channel no longer exists, with options to prune or restore.'))
 		.addSubcommand((sub) => sub
 			.setName('disable-owner-kick')
-			.setDescription('(Admin) Stop channel owners from using /vc kick.'))
+			.setDescription('(Mod) Stop channel owners from using /vc kick.'))
 		.addSubcommand((sub) => sub
 			.setName('enable-owner-kick')
-			.setDescription('(Admin) Let channel owners use /vc kick again.')),
+			.setDescription('(Mod) Let channel owners use /vc kick again.')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		const handler = HANDLERS[subcommand];

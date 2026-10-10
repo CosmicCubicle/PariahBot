@@ -14,7 +14,7 @@ function resolveRoleColor(raw) {
 	throw new Error(`"${raw}" isn't a color I recognize — use a hex code like #FF0000 or a name like Red.`);
 }
 
-// Shared by mod-role add and the single-role settings below: resolves `role`
+// Shared by admin-role/mod-role add and the single-role settings below: resolves `role`
 // (use as-is) or `name`/`color` (create a new one) to one Role object.
 async function resolveOrCreateRole(interaction, { role, name, color }) {
 	if (color && !name) {
@@ -31,8 +31,8 @@ async function resolveOrCreateRole(interaction, { role, name, color }) {
 
 // member-role and streamer-role share the exact same set-existing-role /
 // create-new-role / clear shape, so this is the one handler for both — only
-// what to do with the resolved role ID differs, via `config`. mod-role can't
-// use this: it holds any number of roles, not one to set-or-clear.
+// what to do with the resolved role ID differs, via `config`. admin-role and
+// mod-role can't use this: they hold any number of roles, not one to set-or-clear.
 async function handleRoleSetup(interaction, config) {
 	requireAdmin(interaction);
 
@@ -97,7 +97,29 @@ function addRoleSetupOptions(sub) {
 			.setRequired(false));
 }
 
-async function handleModRoleAdd(interaction) {
+// Admin roles and mod roles are both "any number of roles" lists with the
+// same add/remove/list/clear shape, so one set of handlers serves both, told
+// apart by `kind`. See lib/permissions.js for what each level can do.
+const STAFF_ROLE_KINDS = {
+	'admin-role': {
+		label: 'admin role',
+		meaning: 'Admins can use every staff command, plus /setup, /security, the admin dashboard and the moderation and banned-words policy settings.',
+		add: guildSettings.addAdminRole,
+		remove: guildSettings.removeAdminRole,
+		list: guildSettings.listAdminRoles,
+		clear: guildSettings.clearAdminRoles,
+	},
+	'mod-role': {
+		label: 'mod role',
+		meaning: 'Mods can use the staff commands except /setup, /security, the admin dashboard and the policy settings.',
+		add: guildSettings.addModRole,
+		remove: guildSettings.removeModRole,
+		list: guildSettings.listModRoles,
+		clear: guildSettings.clearModRoles,
+	},
+};
+
+async function handleStaffRoleAdd(interaction, kind) {
 	requireAdmin(interaction);
 
 	const role = interaction.options.getRole('role');
@@ -113,94 +135,95 @@ async function handleModRoleAdd(interaction) {
 	}
 
 	const targetRole = await resolveOrCreateRole(interaction, { role, name, color });
-
-	guildSettings.addModRole(interaction.guildId, targetRole.id);
-	await interaction.reply({
-		content: `${targetRole} is now a mod role.`,
-		ephemeral: true,
-	});
+	kind.add(interaction.guildId, targetRole.id);
+	await interaction.reply({ content: `${targetRole} is now ${kind.label === 'admin role' ? 'an' : 'a'} ${kind.label}. ${kind.meaning}`, ephemeral: true });
 }
 
-async function handleModRoleRemove(interaction) {
+async function handleStaffRoleRemove(interaction, kind) {
 	requireAdmin(interaction);
 
 	const role = interaction.options.getRole('role');
-	const removed = guildSettings.removeModRole(interaction.guildId, role.id);
-	if (!removed) {
-		throw new Error(`${role} isn't a mod role.`);
+	if (!kind.remove(interaction.guildId, role.id)) {
+		throw new Error(`${role} isn't ${kind.label === 'admin role' ? 'an' : 'a'} ${kind.label}.`);
 	}
-
-	await interaction.reply({ content: `Removed ${role} as a mod role.`, ephemeral: true });
+	await interaction.reply({ content: `Removed ${role} as ${kind.label === 'admin role' ? 'an' : 'a'} ${kind.label}.`, ephemeral: true });
 }
 
-async function handleModRoleList(interaction) {
+async function handleStaffRoleList(interaction, kind, group) {
 	requireAdmin(interaction);
 
-	const roleIds = guildSettings.listModRoles(interaction.guildId);
+	const roleIds = kind.list(interaction.guildId);
 	await interaction.reply({
 		content: roleIds.length
-			? `Mod roles: ${roleIds.map((id) => `<@&${id}>`).join(', ')}`
-			: 'No mod roles configured yet — use `/setup mod-role add`.',
+			? `${kind.label[0].toUpperCase()}${kind.label.slice(1)}s: ${roleIds.map((id) => `<@&${id}>`).join(', ')}`
+			: `No ${kind.label}s configured yet — use \`/setup ${group} add\`.`,
 		ephemeral: true,
+		allowedMentions: { parse: [] },
 	});
 }
 
-async function handleModRoleClear(interaction) {
+async function handleStaffRoleClear(interaction, kind) {
 	requireAdmin(interaction);
 
-	const count = guildSettings.clearModRoles(interaction.guildId);
+	const count = kind.clear(interaction.guildId);
 	await interaction.reply({
-		content: count > 0 ? `Cleared all ${count} mod role${count === 1 ? '' : 's'}.` : 'No mod roles were configured.',
+		content: count > 0 ? `Cleared all ${count} ${kind.label}${count === 1 ? '' : 's'}.` : `No ${kind.label}s were configured.`,
 		ephemeral: true,
 	});
 }
 
-const MOD_ROLE_HANDLERS = {
-	add: handleModRoleAdd,
-	remove: handleModRoleRemove,
-	list: handleModRoleList,
-	clear: handleModRoleClear,
+const STAFF_ROLE_HANDLERS = {
+	add: handleStaffRoleAdd,
+	remove: handleStaffRoleRemove,
+	list: handleStaffRoleList,
+	clear: handleStaffRoleClear,
 };
 
+function addStaffRoleGroup(builder, group, description) {
+	const label = STAFF_ROLE_KINDS[group].label;
+	return builder.addSubcommandGroup((g) => g
+		.setName(group)
+		.setDescription(description)
+		.addSubcommand((sub) => sub
+			.setName('add')
+			.setDescription(`(Admin) Add an existing or newly-created role as ${label === 'admin role' ? 'an' : 'a'} ${label}.`)
+			.addRoleOption((option) => option
+				.setName('role')
+				.setDescription('Use this existing role')
+				.setRequired(false))
+			.addStringOption((option) => option
+				.setName('name')
+				.setDescription('Create a new role with this name')
+				.setMaxLength(100)
+				.setRequired(false))
+			.addStringOption((option) => option
+				.setName('color')
+				.setDescription('Color for the new role — hex code (#FF0000) or name (Red)')
+				.setRequired(false)))
+		.addSubcommand((sub) => sub
+			.setName('remove')
+			.setDescription(`(Admin) Remove ${label === 'admin role' ? 'an' : 'a'} ${label}.`)
+			.addRoleOption((option) => option
+				.setName('role')
+				.setDescription(`The ${label} to remove`)
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('list')
+			.setDescription(`(Admin) List the configured ${label}s.`))
+		.addSubcommand((sub) => sub
+			.setName('clear')
+			.setDescription(`(Admin) Remove all configured ${label}s.`)));
+}
+
 module.exports = {
-	data: new SlashCommandBuilder()
+	data: addStaffRoleGroup(addStaffRoleGroup(new SlashCommandBuilder()
 		.setName('setup')
 		.setDescription("Configure this server's roles for PariahBot.")
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('member-role')
-			.setDescription('(Admin) Set, create, or clear the member role.')))
-		.addSubcommandGroup((group) => group
-			.setName('mod-role')
-			.setDescription('Roles that count as mods for PariahBot — any number can be configured.')
-			.addSubcommand((sub) => sub
-				.setName('add')
-				.setDescription('(Admin) Add an existing or newly-created role as a mod role.')
-				.addRoleOption((option) => option
-					.setName('role')
-					.setDescription('Use this existing role')
-					.setRequired(false))
-				.addStringOption((option) => option
-					.setName('name')
-					.setDescription('Create a new role with this name')
-					.setMaxLength(100)
-					.setRequired(false))
-				.addStringOption((option) => option
-					.setName('color')
-					.setDescription('Color for the new role — hex code (#FF0000) or name (Red)')
-					.setRequired(false)))
-			.addSubcommand((sub) => sub
-				.setName('remove')
-				.setDescription('(Admin) Remove a mod role.')
-				.addRoleOption((option) => option
-					.setName('role')
-					.setDescription('Mod role to remove')
-					.setRequired(true)))
-			.addSubcommand((sub) => sub
-				.setName('list')
-				.setDescription('(Admin) List the configured mod roles.'))
-			.addSubcommand((sub) => sub
-				.setName('clear')
-				.setDescription('(Admin) Remove all configured mod roles.')))
+			.setDescription('(Admin) Set, create, or clear the member role.'))),
+	'admin-role', 'Roles that count as admins for PariahBot — any number can be configured.'),
+	'mod-role', 'Roles that count as mods for PariahBot — any number can be configured.')
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('streamer-role')
 			.setDescription('(Admin) Set, create, or clear the streamer role.'))),
@@ -208,10 +231,10 @@ module.exports = {
 		const group = interaction.options.getSubcommandGroup(false);
 		const sub = interaction.options.getSubcommand();
 
-		if (group === 'mod-role') {
-			const handler = MOD_ROLE_HANDLERS[sub];
-			if (!handler) throw new Error(`Unknown /setup mod-role subcommand: ${sub}`);
-			await handler(interaction);
+		if (STAFF_ROLE_KINDS[group]) {
+			const handler = STAFF_ROLE_HANDLERS[sub];
+			if (!handler) throw new Error(`Unknown /setup ${group} subcommand: ${sub}`);
+			await handler(interaction, STAFF_ROLE_KINDS[group], group);
 			return;
 		}
 

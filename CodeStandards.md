@@ -91,10 +91,11 @@ Use [commands/autodelete.js](commands/autodelete.js) as the reference.
   },
   ```
 
-- **The permission check is the first line** of every admin handler:
-  `requireAdmin(interaction);`.
-- Start the description of every admin-only command and subcommand with
-  `(Admin) `.
+- **The permission check is the first line** of every staff handler:
+  `requireAdmin(interaction);` for admin-only ones, `requireMod(interaction);`
+  for everything else staff can do (see §8).
+- Start the description of every staff command and subcommand with
+  `(Admin) ` or `(Mod) `, matching its check.
 - **Report user errors by throwing.** Throw `new Error('...')` with a message
   written for the user. The central handler in
   [events/interactionCreate.js](events/interactionCreate.js) logs it, audits
@@ -234,12 +235,22 @@ scoped to `interaction.guildId`.
 
 ## 8. Permissions
 
-- Admin commands use `requireAdmin` from
-  [lib/permissions.js](lib/permissions.js): Discord Administrator **or** any
-  configured mod role. Plain Manage Channels is *not* enough.
-- `isMod` (which accepts Manage Channels or a mod role) exists only for the
-  narrower `/vc claim` ownership override. Don't use it to gate admin
-  commands.
+- There are three levels, in [lib/permissions.js](lib/permissions.js):
+  - **Admin** (`isAdmin`, `requireAdmin`): Discord's Administrator
+    permission, or an admin role (`/setup admin-role`). Admin-only:
+    `/setup`, `/security`, the admin dashboard, `/mod config` and
+    `remove-case`, and `/bannedwords` on/off and lists. These are things
+    that configure the server, or erase records of staff actions.
+  - **Mod** (`isMod`, `requireMod`): a mod role (`/setup mod-role`), or any
+    admin. Every other staff command.
+  - **User:** everyone else.
+
+  Plain Manage Channels is neither.
+- **When adding a staff command, decide which level it is.** Admin if it
+  changes how the server is set up, or could hide or erase what other staff
+  did. Mod otherwise.
+- `canOverrideVoiceOwner` (Manage Channels, or any mod) exists only for the
+  narrower `/vc claim` ownership override. Don't use it to gate commands.
 - Check permissions **live** from the member's current roles. Don't cache
   them per user or per channel.
 - The bot's role must be above any role it grants or anyone it removes. Check
@@ -264,8 +275,8 @@ scoped to `interaction.guildId`.
 are the **only** code paths that ban or kick. If you add another, it has to
 follow the same invariants and be recorded in WorkingAgreements.md:
 
-1. **Admins and mod-role members are always skipped**, checked before any
-   removal.
+1. **Staff (admins and mods, `isMod`) are always skipped**, checked before
+   any removal.
 2. **DM before removing**, best-effort. After a ban the bot can't open a DM.
 3. Pass a `reason` on every moderation API call, so the server's audit log
    explains itself.
@@ -408,7 +419,7 @@ that area.
   `fetchPins()`, returns a different shape (paginated), so the switch needs
   testing against real pinned messages rather than a rename.
 - **The deleted-hub Prune and Restore buttons** (`lib/hubDesync.js`) check
-  Manage Channels, not `isAdmin` (§8). They can be clicked from a DM, where
+  Manage Channels, not `isMod` (§8). They can be clicked from a DM, where
   only Discord's permission bits are available without fetching the
-  member's roles. Move them to `isAdmin` when that code is next touched,
+  member's roles. Move them to `isMod` (the level `/voice` uses) when that code is next touched,
   and update the wiki's Permissions page with it.

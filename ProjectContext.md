@@ -122,7 +122,7 @@ Two code paths ban or kick anyone:
 
 Both follow the two rules in
 [WorkingAgreements.md § 3 and § 4](WorkingAgreements.md#3-never-let-the-bot-remove-its-own-moderators):
-skip admins and mod roles, and DM before removing. `/mod` also requires the
+skip staff (admins and mods), and DM before removing. `/mod` also requires the
 moderator to outrank the target, as Discord's own kick and ban do.
 
 **Every moderation action is recorded** as a case in `mod_cases`, for
@@ -189,8 +189,9 @@ connection directly.
     every server, plus the Status page, which covers every server and the
     host.
   - **Anyone else:** only the servers where they're an admin by `isAdmin`
-    (Administrator, or a mod role), the same check as the admin slash
-    commands. Someone who admins none of the bot's servers isn't given a
+    (Administrator, or an admin role), the same check as the admin-only
+    slash commands. Mods don't get the dashboard: it reaches `/setup`,
+    `/security` and the policy settings, which are admin-only. Someone who admins none of the bot's servers isn't given a
     session.
 
   It's rechecked on every request, with the member fetched fresh from

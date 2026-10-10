@@ -32,8 +32,19 @@ db.exec(`
 		PRIMARY KEY (guild_id, user_id)
 	);
 
-	-- Superseded guild_settings.mod_role_id (a single role) — mod status is now
-	-- membership in any of these. See the migration below for existing installs.
+	-- Admin roles (/setup admin-role): members holding any of these are admins,
+	-- alongside Discord's Administrator permission — see lib/permissions.js.
+	-- Admins can do everything mods can, plus /setup, /security, the admin
+	-- dashboard and the moderation/banned-words policy settings.
+	CREATE TABLE IF NOT EXISTS guild_admin_roles (
+		guild_id TEXT NOT NULL,
+		role_id  TEXT NOT NULL,
+		PRIMARY KEY (guild_id, role_id)
+	);
+
+	-- Mod roles (/setup mod-role): staff below admin — see lib/permissions.js.
+	-- Superseded guild_settings.mod_role_id (a single role); see the migration
+	-- below for existing installs.
 	CREATE TABLE IF NOT EXISTS guild_mod_roles (
 		guild_id TEXT NOT NULL,
 		role_id  TEXT NOT NULL,

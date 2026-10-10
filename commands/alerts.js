@@ -2,7 +2,7 @@ const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js')
 const guildSettings = require('../state/guildSettings');
 const { createDefaultAlertInfra } = require('../lib/defaultAlertInfra');
 const { sendAlert } = require('../lib/alertDelivery');
-const { requireAdmin } = require('../lib/permissions');
+const { requireMod } = require('../lib/permissions');
 
 // General-purpose: not specific to any one feature. Anything in the bot that wants
 // to notify a server's admins (right now, only hub-desync detection) can call
@@ -10,21 +10,21 @@ const { requireAdmin } = require('../lib/permissions');
 // UI for configuring where those notices go, one shared destination per guild.
 
 async function handleChannel(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const channel = interaction.options.getChannel('channel');
 	guildSettings.setAlertChannel(interaction.guildId, channel.id);
 	await interaction.reply({ content: `Alert channel set to ${channel}.`, ephemeral: true });
 }
 
 async function handleAddRecipient(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const user = interaction.options.getUser('user');
 	guildSettings.addAlertRecipient(interaction.guildId, user.id);
 	await interaction.reply({ content: `${user} will now be DMed alerts.`, ephemeral: true });
 }
 
 async function handleRemoveRecipient(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const user = interaction.options.getUser('user');
 	const removed = guildSettings.removeAlertRecipient(interaction.guildId, user.id);
 	await interaction.reply({
@@ -34,7 +34,7 @@ async function handleRemoveRecipient(interaction) {
 }
 
 async function handleRemoveDefault(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const settings = guildSettings.getGuildSettings(interaction.guildId);
 
 	if (!settings.defaultCategoryId && !settings.defaultChannelId) {
@@ -60,7 +60,7 @@ async function handleRemoveDefault(interaction) {
 }
 
 async function handleRestoreDefault(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const settings = guildSettings.getGuildSettings(interaction.guildId);
 	const categoryStillExists = settings.defaultCategoryId && interaction.guild.channels.cache.has(settings.defaultCategoryId);
 	const channelStillExists = settings.defaultChannelId && interaction.guild.channels.cache.has(settings.defaultChannelId);
@@ -76,7 +76,7 @@ async function handleRestoreDefault(interaction) {
 }
 
 async function handleTest(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const embed = new EmbedBuilder()
 		.setTitle('🔔 Test alert')
@@ -107,7 +107,7 @@ async function handleTest(interaction) {
 }
 
 async function handleStatus(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const settings = guildSettings.getGuildSettings(interaction.guildId);
 	const recipients = guildSettings.listAlertRecipients(interaction.guildId);
@@ -144,7 +144,7 @@ const HANDLERS = {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('alerts')
-		.setDescription('(Admin) Configure where PariahBot sends admin alerts.')
+		.setDescription('(Mod) Configure where PariahBot sends admin alerts.')
 		.addSubcommand((sub) => sub
 			.setName('channel')
 			.setDescription('Set the text channel alerts are posted in.')

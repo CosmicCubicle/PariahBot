@@ -15,7 +15,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Temporary voice channels** — join-to-create hubs with their own name template and user limits, owner self-service controls (`/vc`) that admins can switch off one by one, automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted. Also managed from the dashboard's Voice tab, including closing live channels.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
-- **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
+- **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mods always skipped.
 - **Moderation** — `/mod` warns, kicks, bans (permanent or temporary), softbans and times out members, also from a right-click menu. Every action is kept in each member's `/mod history`, repeated warnings can time someone out automatically, and ban DMs can include an appeal note. Admins and mod roles can't be targeted, the member is DMed first, and every action is reported through the admin alerts.
 - **Banned words** — blocks messages containing words from ready-made lists (Discord's profanity, sexual content and slur lists, plus scams, harassment and drugs) and the server's own custom words, using Discord AutoMod, so nobody sees them. Each block is reported through the admin alerts. Needs the bot to have Manage Server.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
@@ -24,7 +24,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Twitch and YouTube alerts** — members with the streamer role link their own Twitch or YouTube channel, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role and with a custom message, when any of them goes live, and when a YouTube channel uploads a new video. Each platform needs its API credentials in `hom.env`.
 - **Instagram post alerts** — admins follow any number of public Instagram Business or Creator accounts, and the bot shares each new post and reel in a dedicated channel, optionally pinging a role and with a custom message. Needs a Meta System User token in `hom.env`; see the wiki's [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts) page.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
-- **Per-server role configuration** — member, mod (any number), and streamer roles, each settable to an existing role or created on the spot.
+- **Per-server role configuration** — member, admin and mod (any number of each), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
 - **Admin dashboard** — an optional web page on the bot's host. Server admins sign in with Discord and change most settings for the servers they admin; the bot's owner sees every server plus the bot's status. Reach it locally, through an SSH tunnel, or publicly through a Cloudflare Tunnel. Off unless `deploy/setup.sh` (or `hom.env`) turns it on.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
@@ -71,8 +71,12 @@ Both paths are covered in detail in the wiki:
 
 ## Commands
 
-**(Admin)** requires Discord's Administrator permission or membership in a mod
-role (`/setup mod-role add`). Manage Channels alone is not sufficient.
+Staff come in two levels, set with `/setup`:
+
+- **(Admin):** Discord's Administrator permission, or an **admin role** (`/setup admin-role add`).
+- **(Mod):** a **mod role** (`/setup mod-role add`), or any admin.
+
+Manage Channels alone is neither.
 
 | Command | Description |
 | --- | --- |
@@ -80,18 +84,18 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/ping` | Reports bot and Discord API latency. |
 | `/level` | `rank` for your (or someone's) level and XP, `leaderboard` for the server top 10. |
 | `/vc` | Controls for the temporary voice channel you currently own: `name`, `limit`, `lock`, `unlock`, `kick`, `claim`, `transfer`. |
-| `/voice` | (Admin) Voice hub management: `add`, `create`, `edit`, `remove`, `list`, `audit`, `owner-control`, `disable-owner-kick`, `enable-owner-kick`. |
-| `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
-| `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
+| `/voice` | (Mod) Voice hub management: `add`, `create`, `edit`, `remove`, `list`, `audit`, `owner-control`, `disable-owner-kick`, `enable-owner-kick`. |
+| `/roles` | (Mod) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
+| `/setup` | (Admin) Server roles: `member-role`, `admin-role` and `mod-role` (each `add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
-| `/mod` | (Admin) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`, `remove-case`, `config escalation`/`escalation-off`, `config appeal-note`/`appeal-note-clear`, `config show`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
-| `/bannedwords` | (Admin) Banned words via Discord AutoMod: `enable`, `disable`, `list add`/`remove`, `word add`/`remove`, `status`. |
-| `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
-| `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
-| `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Admin): `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
-| `/rss` | (Admin) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
-| `/instagram` | (Admin) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
-| `/giveaway` | (Admin) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
+| `/mod` | (Mod) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`. (Admin): `remove-case`, `config escalation`/`escalation-off`, `config appeal-note`/`appeal-note-clear`, `config show`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
+| `/bannedwords` | Banned words via Discord AutoMod. (Admin): `enable`, `disable`, `list add`/`remove`. (Mod): `word add`/`remove`, `status`. |
+| `/autodelete` | (Mod) Per-channel message auto-deletion: `set`, `disable`, `status`. |
+| `/alerts` | (Mod) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
+| `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
+| `/instagram` | (Mod) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/giveaway` | (Mod) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:
 **[Commands](https://github.com/CosmicCubicle/PariahBot/wiki/Commands)**.

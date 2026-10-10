@@ -2,7 +2,7 @@ const { SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } = 
 const streamerStore = require('../state/streamers');
 const guildSettings = require('../state/guildSettings');
 const { PLATFORMS, requireConfigured } = require('../lib/streamPlatforms');
-const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { isMod, requireMod } = require('../lib/permissions');
 const { MESSAGE_PLACEHOLDERS } = require('../lib/streamAlerts');
 const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
 
@@ -91,7 +91,7 @@ async function handleUnlink(interaction) {
 }
 
 async function handleAdd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const platform = interaction.options.getString('platform');
 	requireConfigured(platform);
 
@@ -112,7 +112,7 @@ async function handleAdd(interaction) {
 }
 
 async function handleChannel(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const channel = interaction.options.getChannel('channel');
 	const pingRole = interaction.options.getRole('ping_role');
@@ -141,7 +141,7 @@ async function handleChannel(interaction) {
 const PREVIEW_VALUES = { name: 'SomeStreamer', title: 'Ranked grind tonight!', url: 'https://www.twitch.tv/somestreamer', platform: 'Twitch' };
 
 async function handleMessage(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const text = interaction.options.getString('text').trim();
 	const unknown = unknownPlaceholders(text, MESSAGE_PLACEHOLDERS);
@@ -165,13 +165,13 @@ async function handleMessage(interaction) {
 }
 
 async function handleClearMessage(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.setStreamAlertMessage(interaction.guildId, null);
 	await interaction.reply({ content: 'Custom message cleared — alerts go back to just the ping.', ephemeral: true });
 }
 
 async function handleDisable(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	guildSettings.clearStreamAlerts(interaction.guildId);
 	await interaction.reply({
 		content: 'Stream and upload alerts are off. The streamer list is kept — `/streamers channel` turns alerts back on.',
@@ -186,7 +186,7 @@ const PICKED_ACCOUNT_PATTERN = new RegExp(`^(${Object.keys(PLATFORMS).join('|')}
 // Removes by member (everything attached to them, on every platform) or by
 // account (the one channel, which may have no member at all).
 async function handleRemove(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const user = interaction.options.getUser('member');
 	const account = interaction.options.getString('account')?.trim();
@@ -228,7 +228,7 @@ function describeLink(link) {
 }
 
 async function handleList(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const { streamAlertChannelId, streamAlertRoleId, streamAlertMessage, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
 	const links = streamerStore.listLinksForGuild(interaction.guildId);
@@ -299,7 +299,7 @@ module.exports = {
 			.addStringOption((option) => platformOption(option, false, 'Only this platform (default: all of yours)')))
 		.addSubcommand((sub) => sub
 			.setName('add')
-			.setDescription('(Admin) Add a channel to the alert list — no streamer role needed.')
+			.setDescription('(Mod) Add a channel to the alert list — no streamer role needed.')
 			.addStringOption((option) => platformOption(option, true, 'Where they stream'))
 			.addStringOption((option) => accountOption(option, 'Twitch username, or YouTube @handle / channel link'))
 			.addUserOption((option) => option
@@ -308,7 +308,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('channel')
-			.setDescription('(Admin) Choose where alerts post, and optionally a role to ping.')
+			.setDescription('(Mod) Choose where alerts post, and optionally a role to ping.')
 			.addChannelOption((option) => option
 				.setName('channel')
 				.setDescription('Channel for stream and upload alerts')
@@ -320,7 +320,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('message')
-			.setDescription('(Admin) Set custom text for alerts. The ping role is still pinged.')
+			.setDescription('(Mod) Set custom text for alerts. The ping role is still pinged.')
 			.addStringOption((option) => option
 				.setName('text')
 				.setDescription('Your text. Placeholders: {name} {title} {url} {platform} {role}')
@@ -328,13 +328,13 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('clear-message')
-			.setDescription('(Admin) Remove the custom text, so alerts are just the ping again.'))
+			.setDescription('(Mod) Remove the custom text, so alerts are just the ping again.'))
 		.addSubcommand((sub) => sub
 			.setName('disable')
-			.setDescription('(Admin) Turn off stream and upload alerts. The streamer list is kept.'))
+			.setDescription('(Mod) Turn off stream and upload alerts. The streamer list is kept.'))
 		.addSubcommand((sub) => sub
 			.setName('remove')
-			.setDescription('(Admin) Remove a streamer by member or by channel.')
+			.setDescription('(Mod) Remove a streamer by member or by channel.')
 			.addUserOption((option) => option
 				.setName('member')
 				.setDescription('Remove every channel attached to this member')
@@ -347,7 +347,7 @@ module.exports = {
 			.addStringOption((option) => platformOption(option, false, 'Only needed if you typed a name instead of picking a suggestion')))
 		.addSubcommand((sub) => sub
 			.setName('list')
-			.setDescription('(Admin) Show the alert settings and every streamer on the list.')),
+			.setDescription('(Mod) Show the alert settings and every streamer on the list.')),
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		const handler = HANDLERS[subcommand];
@@ -359,7 +359,7 @@ module.exports = {
 	// security boundary on its own (a typed value needn't come from here),
 	// which is why removeByAccount also scopes by guild_id.
 	async autocomplete(interaction) {
-		if (!isAdmin(interaction.member, interaction.guildId)) {
+		if (!isMod(interaction.member, interaction.guildId)) {
 			await interaction.respond([]);
 			return;
 		}

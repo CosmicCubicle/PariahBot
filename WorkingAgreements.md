@@ -128,7 +128,7 @@ Two code paths remove members:
 - [lib/moderation.js](lib/moderation.js): `/mod` and the right-click Kick,
   Ban and Timeout actions, run by a moderator
 
-Every change to either must keep the admin and mod-role check (`isAdmin` from
+Every change to either must keep the staff check (`isMod` from
 [lib/permissions.js](lib/permissions.js)) ahead of the removal. In
 `lib/moderation.js` it's in `checkTarget`, which also covers timeouts and
 warnings. Automatic timeouts from repeated warnings only follow a warning
@@ -136,7 +136,8 @@ that passed it, so they can't reach an admin or mod either.
 
 **Why:** a moderator who wanders into the trap channel must never be removed
 by their own bot. For `/mod`, it stops one moderator using the bot against
-another; taking someone's mod role away first is a deliberate, visible step.
+another; taking someone's admin or mod role away first is a deliberate,
+visible step.
 
 **How to apply:** any new code that removes members follows the same rule,
 and is added to this section and to
