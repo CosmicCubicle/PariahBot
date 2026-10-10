@@ -17,6 +17,7 @@ several single-purpose bots with one:
 - message auto-deletion
 - anti-spam (captcha and honeypot)
 - banned words
+- moderation (kick, ban, temporary ban, timeout)
 - giveaways
 - activity levels
 - Twitch and YouTube alerts
@@ -101,10 +102,20 @@ enough verification.
 
 ## 4. Destructive actions
 
-[lib/honeypot.js](lib/honeypot.js) is the only code path in this bot that
-bans or kicks anyone. Its two rules (skip admins and mod roles, and DM
-before removing) are in
-[WorkingAgreements.md § 3 and § 4](WorkingAgreements.md#3-never-let-the-bot-remove-its-own-moderators).
+Two code paths ban or kick anyone:
+
+- [lib/honeypot.js](lib/honeypot.js), automatically
+- [lib/moderation.js](lib/moderation.js), when a moderator uses `/mod` or a
+  right-click action
+
+Both follow the two rules in
+[WorkingAgreements.md § 3 and § 4](WorkingAgreements.md#3-never-let-the-bot-remove-its-own-moderators):
+skip admins and mod roles, and DM before removing. `/mod` also requires the
+moderator to outrank the target, as Discord's own kick and ban do.
+
+**Temporary bans** are stored in SQLite (`temp_bans`), not just as timers, so
+a restart doesn't turn them permanent. The unban is scheduled again at
+startup, and runs straight away if it fell due while the bot was offline.
 
 The default "remove" is a **softban**: ban, then immediately unban.
 

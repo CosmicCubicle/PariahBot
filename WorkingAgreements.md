@@ -122,13 +122,19 @@ a hub belonging to a different server.
 
 ## 3. Never let the bot remove its own moderators
 
-[lib/honeypot.js](lib/honeypot.js) is the only code path that bans or kicks
-anyone. Every change to it must keep the admin and mod-role skip check
-(`isAdmin` from [lib/permissions.js](lib/permissions.js)) ahead of the
-removal.
+Two code paths remove members:
+
+- [lib/honeypot.js](lib/honeypot.js): anyone who posts in the trap channel
+- [lib/moderation.js](lib/moderation.js): `/mod` and the right-click Kick,
+  Ban and Timeout actions, run by a moderator
+
+Every change to either must keep the admin and mod-role check (`isAdmin` from
+[lib/permissions.js](lib/permissions.js)) ahead of the removal. In
+`lib/moderation.js` it's in `checkTarget`, which also covers timeouts.
 
 **Why:** a moderator who wanders into the trap channel must never be removed
-by their own bot.
+by their own bot. For `/mod`, it stops one moderator using the bot against
+another; taking someone's mod role away first is a deliberate, visible step.
 
 **How to apply:** any new code that removes members follows the same rule,
 and is added to this section and to

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js')
 const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
 const { requireAdmin } = require('../lib/permissions');
+const { parseDuration } = require('../lib/duration');
 
 function resolveTargetChannel(interaction) {
 	return interaction.options.getChannel('channel') ?? interaction.channel;
@@ -45,7 +46,7 @@ async function handleSet(interaction) {
 	}
 
 	const maxMessages = count ?? 0;
-	const liveSeconds = durationRaw ? autoDelete.parseDuration(durationRaw) : 0;
+	const liveSeconds = durationRaw ? parseDuration(durationRaw) : 0;
 	const config = { maxMessages, liveSeconds };
 
 	// Turning on tracking for a channel with backlog (fetching history, then
@@ -122,7 +123,7 @@ module.exports = {
 				.setRequired(false))
 			.addStringOption((option) => option
 				.setName('duration')
-				.setDescription('Delete messages after this long — e.g. 24h, 30m, 1h30m')
+				.setDescription('Delete messages after this long — e.g. 7d, 24h, 30m, 1h30m')
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('disable')

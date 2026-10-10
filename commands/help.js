@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ApplicationCommandOptionType } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ApplicationCommandOptionType, ApplicationCommandType } = require('discord.js');
 
 function formatOption(option) {
 	const required = option.required ? '*' : '';
@@ -41,9 +41,13 @@ module.exports = {
 		.setName('help')
 		.setDescription('Shows all available bot commands and their options.'),
 	async execute(interaction) {
-		const commands = [...interaction.client.commands.values()]
-			.filter((command) => command.data.name !== 'help')
+		// Right-click commands (see commands/kickMember.js) have no options or
+		// description to list, so they get one field of their own below.
+		const isRightClick = (command) => command.data.toJSON().type === ApplicationCommandType.User;
+		const all = [...interaction.client.commands.values()]
 			.sort((first, second) => first.data.name.localeCompare(second.data.name));
+		const commands = all.filter((command) => command.data.name !== 'help' && !isRightClick(command));
+		const rightClick = all.filter(isRightClick);
 
 		const embed = new EmbedBuilder()
 			.setTitle('PariahBot commands')
@@ -60,6 +64,13 @@ module.exports = {
 			embed.addFields({
 				name: `/${command.data.name}`,
 				value: `${command.data.description}\n${formatCommand(command)}`,
+			});
+		}
+
+		if (rightClick.length) {
+			embed.addFields({
+				name: 'Right-click a member → Apps',
+				value: `${rightClick.map((command) => `**${command.data.name}**`).join(', ')} — admins only, same as /mod.`,
 			});
 		}
 
