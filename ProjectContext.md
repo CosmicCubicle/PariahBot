@@ -145,10 +145,10 @@ description should say so.
 - The streamer list has two sources that work side by side: members with the
   streamer role self-link, and admins add channels directly. Admin-added
   channels alert regardless of roles, and don't need a member in the server.
-- Social alerts (#18): Instagram is done (#37), with its own channel and
-  `/instagram` command rather than a `/streamers` platform, because posts
-  aren't streams and don't involve the streamer role. Another social
-  platform would follow the Instagram pattern.
+- Social alerts (#18) shipped as Instagram post alerts (#37), with their
+  own channel and `/instagram` command rather than a `/streamers` platform,
+  because posts aren't streams and don't involve the streamer role. Another
+  social platform would get a new issue and follow the Instagram pattern.
 - Every YouTube upload is announced, including Shorts. There's no per-channel
   or per-kind filter yet, and uploads go to the same channel as live alerts.
 - Code that doesn't meet the standards yet is listed in
