@@ -2,7 +2,7 @@
 
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
-auto-deletion, anti-spam, giveaways, activity levels, Twitch and YouTube
+auto-deletion, anti-spam, banned words, giveaways, activity levels, Twitch and YouTube
 alerts, Instagram post alerts, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
@@ -16,6 +16,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
+- **Banned words** — blocks messages containing words from ready-made lists (Discord's profanity, sexual content and slur lists, plus scams, harassment and drugs) and the server's own custom words, using Discord AutoMod, so nobody sees them. Each block is reported through the admin alerts. Needs the bot to have Manage Server.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
@@ -50,9 +51,11 @@ sudo ./deploy/setup.sh
 Both paths are covered in detail in the wiki:
 
 - **[Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)** — Discord application, permissions, invite link
+- **[Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions)** — every permission the bot needs and which feature it's for
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
+- **[Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words)** — the lists, custom words, exemptions and reporting
 - **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
 - **[Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts)** — the Meta app, System User token and setup
 - **[Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)** — when something silently does nothing
@@ -76,6 +79,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
+| `/bannedwords` | (Admin) Banned words via Discord AutoMod: `enable`, `disable`, `list add`/`remove`, `word add`/`remove`, `status`. |
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Admin): `add`, `channel`, `disable`, `remove`, `list`. |

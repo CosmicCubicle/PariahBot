@@ -16,6 +16,7 @@ several single-purpose bots with one:
 - role menus
 - message auto-deletion
 - anti-spam (captcha and honeypot)
+- banned words
 - giveaways
 - activity levels
 - Twitch and YouTube alerts
@@ -114,13 +115,26 @@ unban lets a real person rejoin.
 ## 5. No privileged gateway intents
 
 The bot uses only Discord's non-privileged intents (`Guilds`,
-`GuildVoiceStates`, `GuildMessages`).
+`GuildVoiceStates`, `GuildMessages`, `AutoModerationExecution`).
 
 **Why it matters:** privileged intents need extra approval in the Discord
 developer portal, which every self-hoster would have to repeat. Features
 are designed around this limit. For example, the captcha uses a persistent
 "Start verification" button rather than listening for members joining,
 which would need the privileged Guild Members intent.
+
+Banned words are the biggest case. Reading message text needs the privileged
+Message Content intent, so the bot never sees what members write. Instead it
+creates **Discord AutoMod rules** from the server's chosen lists and words
+(`lib/bannedWords.js`), and Discord does the blocking:
+- **Blocked before anyone sees it,** even while the bot is offline.
+- **Reported by the bot,** through admin alerts, from the AutoMod execution
+  event. The event gives the matched word but not the whole message.
+- **Costs the Manage Server permission,** which AutoMod rules need.
+- **Uses at most two of the server's AutoMod rules:** the one *keyword
+  preset* rule Discord allows (its own profanity, sexual content and slur
+  lists) and one of the six *keyword* rules (the bot's shipped lists plus
+  custom words, capped at 1,000 together).
 
 ## 6. Documentation lives in the wiki
 

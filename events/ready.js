@@ -7,6 +7,7 @@ const autoDelete = require('../lib/autoDelete');
 const { scheduleActiveGiveaways } = require('../lib/giveaways');
 const { startPoller: startStreamAlerts } = require('../lib/streamAlerts');
 const { startPoller: startInstagramAlerts } = require('../lib/instagramAlerts');
+const { syncAll: syncBannedWords } = require('../lib/bannedWords');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -37,5 +38,6 @@ module.exports = {
 		scheduleActiveGiveaways(client);
 		startStreamAlerts(client);
 		startInstagramAlerts(client);
+		await syncBannedWords(client);
 	},
 };

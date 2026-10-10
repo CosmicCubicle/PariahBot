@@ -67,6 +67,7 @@ function getGuildSettings(guildId) {
 		streamAlertRoleId: row?.stream_alert_role_id ?? null,
 		instagramChannelId: row?.instagram_channel_id ?? null,
 		instagramRoleId: row?.instagram_role_id ?? null,
+		bannedWordsEnabled: !!row?.banned_words_enabled,
 	};
 }
 
@@ -262,6 +263,29 @@ function clearInstagramAlerts(guildId) {
 	upsertInstagramAlertsStmt.run({ guildId, channelId: null, roleId: null });
 }
 
+// /bannedwords on or off — see lib/bannedWords.js. Turning it off keeps the
+// guild's lists and words (state/bannedWords.js).
+const upsertBannedWordsEnabledStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, banned_words_enabled)
+	VALUES (@guildId, @enabled)
+	ON CONFLICT(guild_id) DO UPDATE SET banned_words_enabled = excluded.banned_words_enabled
+`);
+
+function enableBannedWords(guildId) {
+	upsertBannedWordsEnabledStmt.run({ guildId, enabled: 1 });
+}
+
+function disableBannedWords(guildId) {
+	upsertBannedWordsEnabledStmt.run({ guildId, enabled: 0 });
+}
+
+const selectBannedWordsGuildsStmt = db.prepare('SELECT guild_id FROM guild_settings WHERE banned_words_enabled = 1');
+
+// For the startup re-sync in lib/bannedWords.js.
+function listBannedWordsGuilds() {
+	return selectBannedWordsGuildsStmt.all().map((row) => row.guild_id);
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -290,4 +314,7 @@ module.exports = {
 	clearStreamAlerts,
 	setInstagramAlerts,
 	clearInstagramAlerts,
+	enableBannedWords,
+	disableBannedWords,
+	listBannedWordsGuilds,
 };
