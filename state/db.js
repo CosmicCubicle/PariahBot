@@ -250,7 +250,8 @@ if (!hasColumn('guild_settings', 'member_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN member_role_id TEXT');
 }
 
-// Set via /setup streamer-role. No consumer yet — stored for future use.
+// Set via /setup streamer-role. Holding it lets a member self-link a channel
+// with /streamers link, checked live on every alert — see lib/streamAlerts.js.
 if (!hasColumn('guild_settings', 'streamer_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN streamer_role_id TEXT');
 }
