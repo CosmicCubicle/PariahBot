@@ -56,7 +56,6 @@ function getGuildSettings(guildId) {
 		defaultCategoryId: row?.default_category_id ?? null,
 		defaultChannelId: row?.default_channel_id ?? null,
 		defaultAlertsDisabled: !!row?.default_alerts_disabled,
-		ownerKickDisabled: !!row?.owner_kick_disabled,
 		// Which /vc owner controls are allowed — see OWNER_CONTROLS in
 		// lib/tempVoice.js. kick is the original owner_kick_disabled.
 		ownerControls: {
@@ -168,26 +167,6 @@ function setOwnerControlAllowed(guildId, control, allowed) {
 	const stmt = setOwnerControlStmts[control];
 	if (!stmt) throw new Error(`Unknown owner control: ${control}`);
 	stmt.run({ guildId, disabled: allowed ? 0 : 1 });
-}
-
-const setOwnerKickDisabledStmt = db.prepare(`
-	INSERT INTO guild_settings (guild_id, owner_kick_disabled)
-	VALUES (@guildId, @disabled)
-	ON CONFLICT(guild_id) DO UPDATE SET owner_kick_disabled = excluded.owner_kick_disabled
-`);
-
-function disableOwnerKick(guildId) {
-	setOwnerKickDisabledStmt.run({ guildId, disabled: 1 });
-}
-
-function enableOwnerKick(guildId) {
-	setOwnerKickDisabledStmt.run({ guildId, disabled: 0 });
-}
-
-const selectOwnerKickDisabledStmt = db.prepare('SELECT owner_kick_disabled FROM guild_settings WHERE guild_id = ?');
-
-function isOwnerKickDisabled(guildId) {
-	return !!selectOwnerKickDisabledStmt.get(guildId)?.owner_kick_disabled;
 }
 
 // The role that identifies a regular member — used by /roles apply-channel-defaults
@@ -392,9 +371,6 @@ module.exports = {
 	removeModRole,
 	clearModRoles,
 	listModRoles,
-	disableOwnerKick,
-	enableOwnerKick,
-	isOwnerKickDisabled,
 	setOwnerControlAllowed,
 	setMemberRole,
 	clearMemberRole,
