@@ -124,6 +124,31 @@ function clearDefaultAlertInfra(guildId) {
 // used for /vc claim's override rules and gating the bot's admin commands.
 // Superseded the single guild_settings.mod_role_id column; see state/db.js for
 // the one-time migration of any guild that already had one set.
+// Admin roles — see lib/permissions.js. Same shape as the mod roles below.
+const insertAdminRoleStmt = db.prepare('INSERT OR IGNORE INTO guild_admin_roles (guild_id, role_id) VALUES (?, ?)');
+
+function addAdminRole(guildId, roleId) {
+	insertAdminRoleStmt.run(guildId, roleId);
+}
+
+const deleteAdminRoleStmt = db.prepare('DELETE FROM guild_admin_roles WHERE guild_id = ? AND role_id = ?');
+
+function removeAdminRole(guildId, roleId) {
+	return deleteAdminRoleStmt.run(guildId, roleId).changes > 0;
+}
+
+const deleteAllAdminRolesStmt = db.prepare('DELETE FROM guild_admin_roles WHERE guild_id = ?');
+
+function clearAdminRoles(guildId) {
+	return deleteAllAdminRolesStmt.run(guildId).changes;
+}
+
+const selectAdminRolesStmt = db.prepare('SELECT role_id FROM guild_admin_roles WHERE guild_id = ? ORDER BY role_id');
+
+function listAdminRoles(guildId) {
+	return selectAdminRolesStmt.all(guildId).map((row) => row.role_id);
+}
+
 const insertModRoleStmt = db.prepare('INSERT OR IGNORE INTO guild_mod_roles (guild_id, role_id) VALUES (?, ?)');
 
 function addModRole(guildId, roleId) {
@@ -367,6 +392,10 @@ module.exports = {
 	getGuildSettings,
 	setDefaultAlertInfra,
 	clearDefaultAlertInfra,
+	addAdminRole,
+	removeAdminRole,
+	clearAdminRoles,
+	listAdminRoles,
 	addModRole,
 	removeModRole,
 	clearModRoles,

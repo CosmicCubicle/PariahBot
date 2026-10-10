@@ -70,7 +70,7 @@ module.exports = {
 		if (rightClick.length) {
 			embed.addFields({
 				name: 'Right-click a member → Apps',
-				value: `${rightClick.map((command) => `**${command.data.name}**`).join(', ')} — admins only, same as /mod.`,
+				value: `${rightClick.map((command) => `**${command.data.name}**`).join(', ')} — staff only, same as /mod.`,
 			});
 		}
 

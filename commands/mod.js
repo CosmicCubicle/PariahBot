@@ -3,7 +3,7 @@ const moderation = require('../lib/moderation');
 const caseStore = require('../state/modCases');
 const guildSettings = require('../state/guildSettings');
 const { parseDuration, formatDuration } = require('../lib/duration');
-const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { isMod, requireAdmin, requireMod } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
 
@@ -30,7 +30,7 @@ function getReason(interaction) {
 // Every action is a handful of API calls plus a DM, which can outlast
 // Discord's 3-second reply window — so each handler defers first.
 async function run(interaction, action) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	await interaction.deferReply({ ephemeral: true });
 	const summary = await action();
 	await interaction.editReply({ content: summary });
@@ -98,7 +98,7 @@ function describeCase(entry) {
 // Read-only, and only ever this server's cases. The user option works for
 // someone who has left or been banned, since their record outlives them.
 async function handleHistory(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const user = interaction.options.getUser('user');
 	const counts = caseStore.countCasesByAction(interaction.guildId, user.id);
 	const cases = caseStore.listCasesForUser(interaction.guildId, user.id, HISTORY_LIMIT);
@@ -240,7 +240,7 @@ module.exports = {
 		.setDescription('Warn, kick, ban and time out members, and see their history.')
 		.addSubcommand((sub) => sub
 			.setName('warn')
-			.setDescription('(Admin) Warn a member: DMs them and records it in their history.')
+			.setDescription('(Mod) Warn a member: DMs them and records it in their history.')
 			.addUserOption((option) => option.setName('member').setDescription('Member to warn').setRequired(true))
 			.addStringOption((option) => option
 				.setName('reason')
@@ -249,7 +249,7 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('history')
-			.setDescription('(Admin) Every warning, kick, ban and timeout against someone, with who and why.')
+			.setDescription('(Mod) Every warning, kick, ban and timeout against someone, with who and why.')
 			.addUserOption((option) => option.setName('user').setDescription("Whose history (they needn't still be in the server)").setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('remove-case')
@@ -300,12 +300,12 @@ module.exports = {
 				.setDescription('(Admin) Show the automatic timeout and appeal note settings.')))
 		.addSubcommand((sub) => sub
 			.setName('kick')
-			.setDescription('(Admin) DM a member, then kick them. They can rejoin.')
+			.setDescription('(Mod) DM a member, then kick them. They can rejoin.')
 			.addUserOption((option) => option.setName('member').setDescription('Member to kick').setRequired(true))
 			.addStringOption(reasonOption))
 		.addSubcommand((sub) => sub
 			.setName('ban')
-			.setDescription('(Admin) DM someone, then ban them — for good, or for a set time.')
+			.setDescription('(Mod) DM someone, then ban them — for good, or for a set time.')
 			.addUserOption((option) => option.setName('user').setDescription("Who to ban (they needn't be in the server — paste an ID)").setRequired(true))
 			.addStringOption(reasonOption)
 			.addIntegerOption((option) => deleteMessagesOption(option, 'Also delete their recent messages (default: none)'))
@@ -316,13 +316,13 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('softban')
-			.setDescription('(Admin) Ban then unban at once: deletes their recent messages, and they can rejoin.')
+			.setDescription('(Mod) Ban then unban at once: deletes their recent messages, and they can rejoin.')
 			.addUserOption((option) => option.setName('user').setDescription('Who to softban').setRequired(true))
 			.addStringOption(reasonOption)
 			.addIntegerOption((option) => deleteMessagesOption(option, 'How far back to delete their messages (default: 24 hours)')))
 		.addSubcommand((sub) => sub
 			.setName('unban')
-			.setDescription('(Admin) Lift a ban, including a temporary one.')
+			.setDescription('(Mod) Lift a ban, including a temporary one.')
 			.addStringOption((option) => option
 				.setName('user')
 				.setDescription('Banned user (pick from the suggestions, or paste their ID)')
@@ -332,7 +332,7 @@ module.exports = {
 			.addStringOption(reasonOption))
 		.addSubcommand((sub) => sub
 			.setName('timeout')
-			.setDescription('(Admin) Stop a member talking or joining voice for a while (max 28 days).')
+			.setDescription('(Mod) Stop a member talking or joining voice for a while (max 28 days).')
 			.addUserOption((option) => option.setName('member').setDescription('Member to time out').setRequired(true))
 			.addStringOption((option) => option
 				.setName('duration')
@@ -342,7 +342,7 @@ module.exports = {
 			.addStringOption(reasonOption))
 		.addSubcommand((sub) => sub
 			.setName('untimeout')
-			.setDescription("(Admin) End a member's timeout early.")
+			.setDescription("(Mod) End a member's timeout early.")
 			.addUserOption((option) => option.setName('member').setDescription('Member whose timeout to end').setRequired(true))
 			.addStringOption(reasonOption)),
 	async execute(interaction) {
@@ -357,7 +357,7 @@ module.exports = {
 	// A typed ID needn't come from here, which is why unban looks it up in
 	// this guild's bans rather than trusting it.
 	async autocomplete(interaction) {
-		if (!isAdmin(interaction.member, interaction.guildId)
+		if (!isMod(interaction.member, interaction.guildId)
 			|| !interaction.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
 			await interaction.respond([]);
 			return;

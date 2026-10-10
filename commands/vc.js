@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { resolveCallerChannel, requireOwner } = require('../lib/vcScope');
-const { isMod } = require('../lib/permissions');
+const { canOverrideVoiceOwner } = require('../lib/permissions');
 const voiceStore = require('../state/voiceChannels');
 const { requireOwnerControl, transferOwnership } = require('../lib/tempVoice');
 
@@ -126,14 +126,14 @@ async function handleClaim(interaction) {
 
 	const ownerMember = interaction.guild.members.cache.get(record.ownerId)
 		?? await interaction.guild.members.fetch(record.ownerId).catch(() => null);
-	const ownerIsMod = ownerMember ? isMod(ownerMember, interaction.guildId) : false;
+	const ownerIsMod = ownerMember ? canOverrideVoiceOwner(ownerMember, interaction.guildId) : false;
 
 	if (ownerIsMod) {
 		throw new Error("This channel is under moderator control — ask them to /vc transfer it to you.");
 	}
 
 	const ownerPresent = ownerMember?.voice.channelId === channel.id;
-	const callerIsMod = isMod(interaction.member, interaction.guildId);
+	const callerIsMod = canOverrideVoiceOwner(interaction.member, interaction.guildId);
 
 	if (ownerPresent && !callerIsMod) {
 		throw new Error("The owner is still in this channel — only a mod can claim it while they're present.");

@@ -122,7 +122,7 @@ Two code paths ban or kick anyone:
 
 Both follow the two rules in
 [WorkingAgreements.md § 3 and § 4](WorkingAgreements.md#3-never-let-the-bot-remove-its-own-moderators):
-skip admins and mod roles, and DM before removing. `/mod` also requires the
+skip staff (admins and mods), and DM before removing. `/mod` also requires the
 moderator to outrank the target, as Discord's own kick and ban do.
 
 **Every moderation action is recorded** as a case in `mod_cases`, for
@@ -175,14 +175,28 @@ connection directly.
 
 - **Off unless the host sets `DASHBOARD_PORT`.** `deploy/setup.sh` asks
   about it.
-- **It listens on 127.0.0.1.** Other computers reach it through an SSH
-  tunnel, which also means Discord's OAuth redirect can be
-  `http://localhost:…`. A self-hosted bot usually has no public HTTPS
-  address, the same constraint as § 1's polling.
-- **Sign-in is Discord OAuth (`identify`), owner only.** That's the
-  application's owner, or its team members, rechecked on every request.
-  Per-server admins aren't supported: the dashboard reaches every server
-  the bot is in.
+- **It listens on 127.0.0.1.** A self-hosted bot usually has no public HTTPS
+  address, the same constraint as § 1's polling. So it's reached in one of
+  two ways:
+  - **an SSH tunnel**, which lets Discord's OAuth redirect be
+    `http://localhost:…`
+  - **a Cloudflare Tunnel**, for a public `https://` address with no open
+    ports. Visitors' devices only ever reach Cloudflare, never the host's
+    network.
+- **Sign-in is Discord OAuth (`identify`).** What someone can do depends on
+  who they are (`lib/dashboard/access.js`):
+  - **The bot's owner** (the application's owner, or its team members):
+    every server, plus the Status page, which covers every server and the
+    host.
+  - **Anyone else:** only the servers where they're an admin by `isAdmin`
+    (Administrator, or an admin role), the same check as the admin-only
+    slash commands. Mods don't get the dashboard: it reaches `/setup`,
+    `/security` and the policy settings, which are admin-only. Someone who admins none of the bot's servers isn't given a
+    session.
+
+  It's rechecked on every request, with the member fetched fresh from
+  Discord. Without the privileged Guild Members intent, cached roles can
+  be stale.
 - **Sessions are signed cookies, not stored state,** so they need no
   exception to WorkingAgreements.md § 1. The key is derived from
   `DISCORD_CLIENT_SECRET`, so rotating that secret signs everyone out.

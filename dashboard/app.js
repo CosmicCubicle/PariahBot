@@ -139,37 +139,42 @@ function showLogin() {
 	$('nav').replaceChildren();
 	$('main').replaceChildren(h('div', { class: 'center' }, h('div', { class: 'card' },
 		h('h2', {}, 'Sign in'),
-		h('p', { class: 'muted' }, "Only the bot's owner can use this dashboard."),
+		h('p', { class: 'muted' }, "For the bot's owner, and admins of the servers it's in. You'll see the servers you're an admin in."),
 		h('a', { href: '/login' }, h('button', { class: 'primary', type: 'button' }, 'Sign in with Discord')))));
 }
 
 function renderAccount() {
 	const { user } = state;
 	const avatar = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : null;
-	$('account').replaceChildren(
+	// Wrapped in h(), which skips null: replaceChildren would show "null" for
+	// an account with no avatar.
+	$('account').replaceChildren(h('span', { class: 'account' },
 		avatar ? h('img', { src: avatar, alt: '' }) : null,
-		h('span', {}, user.username),
+		h('span', {}, user.isOwner ? `${user.username} (owner)` : user.username),
 		btn('Sign out', 'secondary', async () => {
 			await fetch('/logout', { method: 'POST', headers: { 'X-PariahBot-Dashboard': '1' } });
 			showLogin();
 		}),
-	);
+	));
 }
 
 function renderNav() {
 	const navButton = (label, active, onclick, icon) => h('button', { class: active ? 'active' : '', type: 'button', onclick }, icon, h('span', {}, label));
-	$('nav').replaceChildren(
-		navButton('Status', state.view === 'status', () => showStatus(), h('span', { class: 'icon' }, '●')),
+	// replaceChildren takes nodes only: an array becomes the text
+	// "[object HTMLButtonElement],…" and null becomes "null". So the list is
+	// built here, filtered, and spread.
+	const items = [
+		// Status covers every server and the host, so only the owner gets it.
+		state.user.isOwner ? navButton('Status', state.view === 'status', () => showStatus(), h('span', { class: 'icon' }, '●')) : null,
 		h('h3', {}, `Servers (${state.guilds.length})`),
-		// Spread: replaceChildren takes nodes, not an array — an array is
-		// turned into the text "[object HTMLButtonElement],…".
 		...state.guilds.map((guild) => navButton(
 			guild.name,
 			state.view === 'guild' && state.guild?.id === guild.id,
 			() => openGuild(guild.id),
 			guild.icon ? h('img', { src: guild.icon, alt: '' }) : h('span', { class: 'icon' }, guild.name.slice(0, 2)),
 		)),
-	);
+	];
+	$('nav').replaceChildren(...items.filter(Boolean));
 }
 
 async function showStatus() {
@@ -275,6 +280,7 @@ function generalTab() {
 	const recipientId = h('input', { placeholder: 'Discord user ID' });
 	const memberRole = roleSelect(guild.serverRoles.memberRoleId, 'None');
 	const streamerRole = roleSelect(guild.serverRoles.streamerRoleId, 'None');
+	const adminRole = roleSelect(null, null);
 	const modRole = roleSelect(null, null);
 
 	return h('div', {},
@@ -300,8 +306,15 @@ function generalTab() {
 			h('div', { class: 'row' },
 				field('Streamer role (can self-link for stream alerts)', streamerRole),
 				btn('Save', 'primary', (e) => act('roles.setStreamer', { roleId: streamerRole.value || null }, e.target))),
+			h('h3', {}, 'Admin roles'),
+			h('p', { class: 'muted' }, 'Admins can use every staff command, plus /setup, /security, this dashboard and the moderation and banned-words policy settings. Discord’s Administrator permission always counts as admin.'),
+			h('div', { class: 'chips' }, guild.serverRoles.adminRoleIds.length
+				? guild.serverRoles.adminRoleIds.map((id) => h('span', { class: 'chip' }, roleName(id),
+					h('button', { type: 'button', title: 'Remove', onclick: confirmThen(`Remove ${roleName(id)} as an admin role? Its members lose admin commands and this dashboard.`, (e) => act('roles.removeAdmin', { roleId: id }, e.target)) }, '×')))
+				: h('span', { class: 'muted' }, 'No admin roles — only members with Administrator.')),
+			h('div', { class: 'row' }, field('Add an admin role', adminRole), btn('Add', 'secondary', (e) => act('roles.addAdmin', { roleId: adminRole.value }, e.target))),
 			h('h3', {}, 'Mod roles'),
-			h('p', { class: 'muted' }, 'Members with any of these can use admin commands, and are never targeted by moderation or the honeypot.'),
+			h('p', { class: 'muted' }, 'Mods can use the other staff commands: moderation, alerts, voice, role menus, feeds and more. Admins and mods are never targeted by moderation or the honeypot.'),
 			h('div', { class: 'chips' }, guild.serverRoles.modRoleIds.length
 				? guild.serverRoles.modRoleIds.map((id) => h('span', { class: 'chip' }, roleName(id),
 					h('button', { type: 'button', title: 'Remove', onclick: (e) => act('roles.removeMod', { roleId: id }, e.target) }, '×')))
@@ -551,7 +564,16 @@ async function start() {
 	} catch (error) {
 		toast(error.message, true);
 	}
-	showStatus();
+	if (state.user.isOwner) {
+		showStatus();
+	} else if (state.guilds.length) {
+		openGuild(state.guilds[0].id);
+	} else {
+		renderNav();
+		$('main').replaceChildren(h('div', { class: 'center' }, h('div', { class: 'card' },
+			h('h2', {}, 'No servers to manage'),
+			h('p', { class: 'muted' }, "You're not an admin in any server PariahBot is in any more. That needs Administrator or an admin role; mod roles don't include the dashboard."))));
+	}
 }
 
 start();

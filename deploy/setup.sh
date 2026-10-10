@@ -272,7 +272,9 @@ Admin dashboard: on, listening on 127.0.0.1:$DASHBOARD_PORT_VALUE (this machine 
      From another computer, open an SSH tunnel first:
        ssh -L $DASHBOARD_PORT_VALUE:localhost:$DASHBOARD_PORT_VALUE $BOT_USER@$(hostname)
      then open $DASHBOARD_URL in that computer's browser.
-  3. Sign in with Discord. Only the application's owner (or its team members)
-     can get in.
+  3. Sign in with Discord. Server admins see the servers they admin; the
+     application's owner (or its team) sees every server.
+  For a public https:// address with no open ports, see the wiki's Admin
+  Dashboard page (Cloudflare Tunnel).
 EOF
 fi

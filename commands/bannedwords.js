@@ -3,7 +3,7 @@ const bannedWordStore = require('../state/bannedWords');
 const guildSettings = require('../state/guildSettings');
 const { LISTS } = require('../lib/bannedWordLists');
 const { MAX_CUSTOM_WORDS, addCustomWords, normalizeWord, requireManageGuild, syncGuild } = require('../lib/bannedWords');
-const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { isMod, requireAdmin, requireMod } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -106,13 +106,13 @@ async function handleListRemove(interaction) {
 }
 
 async function handleWordAdd(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	await applyChange(interaction, addCustomWords(interaction.guildId, interaction.options.getString('words')));
 }
 
 async function handleWordRemove(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 	const word = normalizeWord(interaction.options.getString('word')) ?? '';
 	const removed = bannedWordStore.removeWord(interaction.guildId, word);
 	if (!removed) {
@@ -133,7 +133,7 @@ function fitField(lines, empty) {
 }
 
 async function handleStatus(interaction) {
-	requireAdmin(interaction);
+	requireMod(interaction);
 
 	const { bannedWordsEnabled } = guildSettings.getGuildSettings(interaction.guildId);
 	const lists = bannedWordStore.listLists(interaction.guildId).filter((key) => LISTS[key]);
@@ -201,7 +201,7 @@ module.exports = {
 			.setDescription("This server's own banned words")
 			.addSubcommand((sub) => sub
 				.setName('add')
-				.setDescription('(Admin) Ban words or phrases. Separate several with commas; * is a wildcard.')
+				.setDescription('(Mod) Ban words or phrases. Separate several with commas; * is a wildcard.')
 				.addStringOption((option) => option
 					.setName('words')
 					.setDescription('e.g. badword, bad phrase, *scamsite*')
@@ -209,7 +209,7 @@ module.exports = {
 					.setRequired(true)))
 			.addSubcommand((sub) => sub
 				.setName('remove')
-				.setDescription('(Admin) Unban one of your custom words.')
+				.setDescription('(Mod) Unban one of your custom words.')
 				.addStringOption((option) => option
 					.setName('word')
 					.setDescription('The word to remove (pick from the suggestions)')
@@ -217,7 +217,7 @@ module.exports = {
 					.setRequired(true))))
 		.addSubcommand((sub) => sub
 			.setName('status')
-			.setDescription('(Admin) Show whether it is on, the lists, the custom words and where blocks are reported.')),
+			.setDescription('(Mod) Show whether it is on, the lists, the custom words and where blocks are reported.')),
 	async execute(interaction) {
 		const group = interaction.options.getSubcommandGroup(false);
 		const subcommand = interaction.options.getSubcommand();
@@ -229,7 +229,7 @@ module.exports = {
 	// Suggestions for /bannedwords word remove — this guild's words only, and
 	// only for admins, since the list itself is moderation detail.
 	async autocomplete(interaction) {
-		if (!isAdmin(interaction.member, interaction.guildId)) {
+		if (!isMod(interaction.member, interaction.guildId)) {
 			await interaction.respond([]);
 			return;
 		}
