@@ -4,6 +4,8 @@ const guildSettings = require('../state/guildSettings');
 const twitch = require('../lib/twitch');
 const youtube = require('../lib/youtube');
 const { isAdmin, requireAdmin } = require('../lib/permissions');
+const { MESSAGE_PLACEHOLDERS } = require('../lib/streamAlerts');
+const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_LISTED = 50;
@@ -185,6 +187,39 @@ async function handleChannel(interaction) {
 	await interaction.reply({ content: notes.join('\n'), ephemeral: true });
 }
 
+// Sample values for the preview that `message` replies with.
+const PREVIEW_VALUES = { name: 'SomeStreamer', title: 'Ranked grind tonight!', url: 'https://www.twitch.tv/somestreamer', platform: 'Twitch' };
+
+async function handleMessage(interaction) {
+	requireAdmin(interaction);
+
+	const text = interaction.options.getString('text').trim();
+	const unknown = unknownPlaceholders(text, MESSAGE_PLACEHOLDERS);
+	if (unknown.length) {
+		throw new Error(`I don't know ${unknown.join(', ')}. You can use {name}, {title}, {url}, {platform} and {role}.`);
+	}
+
+	guildSettings.setStreamAlertMessage(interaction.guildId, text);
+	const { streamAlertRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const preview = renderAlertContent(text, PREVIEW_VALUES, streamAlertRoleId) ?? '';
+	const notes = [
+		'Stream and upload alerts will now say:',
+		`> ${preview.replace(/\n/g, '\n> ')}`,
+		streamAlertRoleId
+			? `The ping for <@&${streamAlertRoleId}> goes ${text.includes('{role}') ? 'where {role} is' : 'at the start'}.`
+			: 'No ping role is set, so nobody is pinged. Add one with `/streamers channel`.',
+		'Only the ping role ever notifies anyone. @everyone or other mentions in the message show as text only.',
+	];
+	// No mentions allowed: the preview must not ping the role for real.
+	await interaction.reply({ content: notes.join('\n'), ephemeral: true, allowedMentions: { parse: [] } });
+}
+
+async function handleClearMessage(interaction) {
+	requireAdmin(interaction);
+	guildSettings.setStreamAlertMessage(interaction.guildId, null);
+	await interaction.reply({ content: 'Custom message cleared — alerts go back to just the ping.', ephemeral: true });
+}
+
 async function handleDisable(interaction) {
 	requireAdmin(interaction);
 	guildSettings.clearStreamAlerts(interaction.guildId);
@@ -245,7 +280,7 @@ function describeLink(link) {
 async function handleList(interaction) {
 	requireAdmin(interaction);
 
-	const { streamAlertChannelId, streamAlertRoleId, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const { streamAlertChannelId, streamAlertRoleId, streamAlertMessage, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
 	const links = streamerStore.listLinksForGuild(interaction.guildId);
 
 	const lines = links.slice(0, MAX_LISTED).map(describeLink);
@@ -263,6 +298,7 @@ async function handleList(interaction) {
 			{ name: 'Ping role', value: streamAlertRoleId ? `<@&${streamAlertRoleId}>` : 'None', inline: true },
 			{ name: 'Streamer role', value: streamerRoleId ? `<@&${streamerRoleId}>` : 'Not set — only admin-added channels alert', inline: true },
 			{ name: 'Platforms', value: platformStatus },
+			{ name: 'Custom message', value: streamAlertMessage ? streamAlertMessage.slice(0, 1024) : 'None — just the ping' },
 		)
 		.setDescription(lines.length ? lines.join('\n') : 'No streamers yet. Members with the streamer role can `/streamers link`, or an admin can `/streamers add`.');
 
@@ -274,6 +310,8 @@ const HANDLERS = {
 	unlink: handleUnlink,
 	add: handleAdd,
 	channel: handleChannel,
+	message: handleMessage,
+	'clear-message': handleClearMessage,
 	disable: handleDisable,
 	remove: handleRemove,
 	list: handleList,
@@ -330,6 +368,17 @@ module.exports = {
 				.setName('ping_role')
 				.setDescription('Role to ping with each alert (optional)')
 				.setRequired(false)))
+		.addSubcommand((sub) => sub
+			.setName('message')
+			.setDescription('(Admin) Set custom text for alerts. The ping role is still pinged.')
+			.addStringOption((option) => option
+				.setName('text')
+				.setDescription('Your text. Placeholders: {name} {title} {url} {platform} {role}')
+				.setMaxLength(MAX_TEMPLATE_LENGTH)
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('clear-message')
+			.setDescription('(Admin) Remove the custom text, so alerts are just the ping again.'))
 		.addSubcommand((sub) => sub
 			.setName('disable')
 			.setDescription('(Admin) Turn off stream and upload alerts. The streamer list is kept.'))

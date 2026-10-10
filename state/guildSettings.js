@@ -65,8 +65,10 @@ function getGuildSettings(guildId) {
 		honeypotAction: row?.honeypot_action ?? 'kick',
 		streamAlertChannelId: row?.stream_alert_channel_id ?? null,
 		streamAlertRoleId: row?.stream_alert_role_id ?? null,
+		streamAlertMessage: row?.stream_alert_message ?? null,
 		instagramChannelId: row?.instagram_channel_id ?? null,
 		instagramRoleId: row?.instagram_role_id ?? null,
+		instagramMessage: row?.instagram_message ?? null,
 		bannedWordsEnabled: !!row?.banned_words_enabled,
 	};
 }
@@ -263,6 +265,28 @@ function clearInstagramAlerts(guildId) {
 	upsertInstagramAlertsStmt.run({ guildId, channelId: null, roleId: null });
 }
 
+// Custom alert text for /streamers and /instagram — see lib/alertContent.js.
+// null goes back to the plain ping.
+const upsertStreamAlertMessageStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, stream_alert_message)
+	VALUES (@guildId, @message)
+	ON CONFLICT(guild_id) DO UPDATE SET stream_alert_message = excluded.stream_alert_message
+`);
+
+function setStreamAlertMessage(guildId, message) {
+	upsertStreamAlertMessageStmt.run({ guildId, message: message ?? null });
+}
+
+const upsertInstagramMessageStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, instagram_message)
+	VALUES (@guildId, @message)
+	ON CONFLICT(guild_id) DO UPDATE SET instagram_message = excluded.instagram_message
+`);
+
+function setInstagramMessage(guildId, message) {
+	upsertInstagramMessageStmt.run({ guildId, message: message ?? null });
+}
+
 // /bannedwords on or off — see lib/bannedWords.js. Turning it off keeps the
 // guild's lists and words (state/bannedWords.js).
 const upsertBannedWordsEnabledStmt = db.prepare(`
@@ -314,6 +338,8 @@ module.exports = {
 	clearStreamAlerts,
 	setInstagramAlerts,
 	clearInstagramAlerts,
+	setStreamAlertMessage,
+	setInstagramMessage,
 	enableBannedWords,
 	disableBannedWords,
 	listBannedWordsGuilds,
