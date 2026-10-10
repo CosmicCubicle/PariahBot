@@ -65,6 +65,8 @@ function getGuildSettings(guildId) {
 		honeypotAction: row?.honeypot_action ?? 'kick',
 		streamAlertChannelId: row?.stream_alert_channel_id ?? null,
 		streamAlertRoleId: row?.stream_alert_role_id ?? null,
+		instagramChannelId: row?.instagram_channel_id ?? null,
+		instagramRoleId: row?.instagram_role_id ?? null,
 	};
 }
 
@@ -241,6 +243,25 @@ function clearStreamAlerts(guildId) {
 	upsertStreamAlertsStmt.run({ guildId, channelId: null, roleId: null });
 }
 
+// Where /instagram post alerts go, and the optional role they ping — see
+// lib/instagramAlerts.js. Both are cleared together by /instagram disable; a
+// null instagram_channel_id is what "Instagram alerts are off" means.
+const upsertInstagramAlertsStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, instagram_channel_id, instagram_role_id)
+	VALUES (@guildId, @channelId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		instagram_channel_id = excluded.instagram_channel_id,
+		instagram_role_id = excluded.instagram_role_id
+`);
+
+function setInstagramAlerts(guildId, channelId, roleId) {
+	upsertInstagramAlertsStmt.run({ guildId, channelId, roleId: roleId ?? null });
+}
+
+function clearInstagramAlerts(guildId) {
+	upsertInstagramAlertsStmt.run({ guildId, channelId: null, roleId: null });
+}
+
 module.exports = {
 	setAlertChannel,
 	getAlertChannel,
@@ -267,4 +288,6 @@ module.exports = {
 	clearHoneypot,
 	setStreamAlerts,
 	clearStreamAlerts,
+	setInstagramAlerts,
+	clearInstagramAlerts,
 };

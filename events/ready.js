@@ -6,6 +6,7 @@ const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
 const { scheduleActiveGiveaways } = require('../lib/giveaways');
 const { startPoller: startStreamAlerts } = require('../lib/streamAlerts');
+const { startPoller: startInstagramAlerts } = require('../lib/instagramAlerts');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -35,5 +36,6 @@ module.exports = {
 		autoDelete.startSweepTimer();
 		scheduleActiveGiveaways(client);
 		startStreamAlerts(client);
+		startInstagramAlerts(client);
 	},
 };
