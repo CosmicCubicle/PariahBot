@@ -5,8 +5,16 @@ const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
 // GuildMessages is non-privileged and needed for /autodelete: receiving
 // messageCreate events and fetching channel history to seed tracking.
+// AutoModerationExecution is non-privileged and needed for /bannedwords:
+// Discord's AutoMod does the blocking, and this event is how the bot hears
+// about each block to report it (see lib/bannedWords.js).
 const client = new Client({
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages],
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildVoiceStates,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.AutoModerationExecution,
+	],
 });
 
 client.commands = new Collection();

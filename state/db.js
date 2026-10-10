@@ -183,6 +183,25 @@ db.exec(`
 		PRIMARY KEY (guild_id, media_id)
 	);
 
+	-- /bannedwords: which ready-made lists a guild has picked (list_key is a
+	-- key of LISTS in lib/bannedWordLists.js), and its own custom words. Only
+	-- the configuration lives here — the AutoMod rules it's turned into live
+	-- in Discord, and are found there by creator rather than by a stored ID,
+	-- so a rule an admin deletes in Server Settings is simply recreated. See
+	-- lib/bannedWords.js.
+	CREATE TABLE IF NOT EXISTS banned_word_lists (
+		guild_id TEXT NOT NULL,
+		list_key TEXT NOT NULL,
+		PRIMARY KEY (guild_id, list_key)
+	);
+
+	CREATE TABLE IF NOT EXISTS banned_words (
+		guild_id TEXT NOT NULL,
+		word     TEXT NOT NULL,
+		added_at TEXT NOT NULL,
+		PRIMARY KEY (guild_id, word)
+	);
+
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
@@ -277,6 +296,13 @@ if (!hasColumn('guild_settings', 'instagram_channel_id')) {
 }
 if (!hasColumn('guild_settings', 'instagram_role_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_role_id TEXT');
+}
+
+// /bannedwords on or off. A separate flag rather than "a set value is on",
+// because there's no single value to set: the lists and words are kept
+// while it's off, so /bannedwords enable can bring the same setup back.
+if (!hasColumn('guild_settings', 'banned_words_enabled')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN banned_words_enabled INTEGER NOT NULL DEFAULT 0');
 }
 
 // When a live item was last confirmed still live — refreshed on every poll
