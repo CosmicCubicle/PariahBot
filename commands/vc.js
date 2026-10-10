@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { resolveCallerChannel, requireOwner } = require('../lib/vcScope');
 const { isMod } = require('../lib/permissions');
 const voiceStore = require('../state/voiceChannels');
-const guildSettings = require('../state/guildSettings');
+const { requireOwnerControl, transferOwnership } = require('../lib/tempVoice');
 
 // Owner self-service on the temp channel the caller currently owns — distinct
 // from /voice, which is guild-admin hub management (Manage Channels). Every
@@ -13,6 +13,7 @@ const guildSettings = require('../state/guildSettings');
 async function handleName(interaction) {
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'name');
 
 	const name = interaction.options.getString('name');
 	await channel.setName(name, 'Renamed via /vc name');
@@ -22,6 +23,7 @@ async function handleName(interaction) {
 async function handleLimit(interaction) {
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'limit');
 
 	const limit = interaction.options.getInteger('limit');
 	if (limit < record.minLimit || limit > record.maxLimit) {
@@ -57,6 +59,7 @@ async function ensureBotRetainsConnect(interaction, channel) {
 async function handleLock(interaction) {
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'lock');
 
 	await ensureBotRetainsConnect(interaction, channel);
 
@@ -76,6 +79,7 @@ async function handleLock(interaction) {
 async function handleUnlock(interaction) {
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'lock');
 
 	const everyoneOverwrite = channel.permissionOverwrites.cache.get(interaction.guildId);
 	if (!everyoneOverwrite?.deny.has(PermissionFlagsBits.Connect)) {
@@ -90,12 +94,9 @@ async function handleUnlock(interaction) {
 }
 
 async function handleKick(interaction) {
-	if (guildSettings.isOwnerKickDisabled(interaction.guildId)) {
-		throw new Error('Server admins have disabled kicking for channel owners.');
-	}
-
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'kick');
 
 	const target = interaction.options.getMember('member');
 	if (!target) {
@@ -110,20 +111,6 @@ async function handleKick(interaction) {
 
 	await target.voice.disconnect(`Kicked via /vc kick by ${interaction.user.tag}`);
 	await interaction.reply({ content: `Disconnected ${target} from the channel.`, ephemeral: true });
-}
-
-// Shared by claim and transfer: moves both the channel's actual permission
-// overwrite (delete the old owner's grant, create a fresh one for the new
-// owner — .create() replaces any existing overwrite outright rather than
-// merging, so there's no leftover from the old grant) and our own tracking.
-async function transferOwnership(channel, fromId, toId) {
-	await channel.permissionOverwrites.delete(fromId).catch(() => null);
-	await channel.permissionOverwrites.create(toId, {
-		ManageChannels: true,
-		MoveMembers: true,
-		Connect: true,
-	}, { reason: 'Ownership transferred via /vc claim or /vc transfer' });
-	voiceStore.setTempChannelOwner(channel.id, toId);
 }
 
 // Claim policy (see pariahbot-temp-voice-channels memory): a mod owner can
@@ -164,6 +151,7 @@ async function handleClaim(interaction) {
 async function handleTransfer(interaction) {
 	const { channel, record } = resolveCallerChannel(interaction);
 	requireOwner(interaction, record);
+	requireOwnerControl(interaction.guildId, 'transfer');
 
 	const target = interaction.options.getMember('member');
 	if (!target) {

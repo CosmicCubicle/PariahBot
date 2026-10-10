@@ -190,9 +190,12 @@ connection directly.
   is checked.** Every ID the page sends is checked against its server
   (WorkingAgreements.md § 2). Every change goes in the command audit log as
   `dashboard <action>`.
-- **What it doesn't do:** create channels or post setup messages (captcha,
-  honeypot, role menus, voice hubs), or act against members. Those stay in
-  Discord, where a moderator's judgement and permissions apply.
+- **What it doesn't do:** post setup messages (captcha, honeypot, role
+  menus), or act against members. Those stay in Discord, where a
+  moderator's judgement and permissions apply. Voice is the one area where
+  it creates and deletes channels: adding, removing and restoring hubs,
+  and closing temp channels. The same rules apply as for `/voice`, through
+  `lib/voiceHubs.js` and `lib/tempVoice.js`.
 
 ## 7. Documentation lives in the wiki
 

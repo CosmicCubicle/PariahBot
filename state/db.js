@@ -373,6 +373,16 @@ if (!hasColumn('guild_settings', 'instagram_message')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_message TEXT');
 }
 
+// /voice owner-control: switch off a /vc owner control per guild. Sticky
+// "disabled" flags like owner_kick_disabled (the original, kept as the kick
+// switch so its setting carries over), so a guild that never touched them
+// keeps every control on.
+for (const column of ['owner_rename_disabled', 'owner_limit_disabled', 'owner_lock_disabled', 'owner_transfer_disabled']) {
+	if (!hasColumn('guild_settings', column)) {
+		db.exec(`ALTER TABLE guild_settings ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
+	}
+}
+
 // /mod config. Warning escalation is on while warn_escalation_count is set:
 // that many warnings within warn_escalation_window_seconds times the member
 // out for warn_escalation_timeout_seconds. ban_appeal_note is an optional

@@ -219,7 +219,8 @@ const TABS = [
 	['alerts', 'Stream, Instagram & RSS'],
 	['autoDelete', 'Auto-delete'],
 	['moderation', 'Moderation'],
-	['other', 'Giveaways, voice & more'],
+	['voice', 'Voice'],
+	['other', 'Giveaways & more'],
 ];
 
 async function openGuild(guildId, resetTab = true) {
@@ -241,7 +242,7 @@ function renderGuild() {
 		class: state.tab === key ? 'active' : '', type: 'button', role: 'tab',
 		onclick: () => { state.tab = key; renderGuild(); },
 	}, label)));
-	const sections = { general: generalTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, other: otherTab };
+	const sections = { general: generalTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, voice: voiceTab, other: otherTab };
 	$('main').replaceChildren(
 		h('h1', {}, guild.name),
 		h('p', { class: 'muted' }, `${guild.memberCount} members · ID ${guild.id}`),
@@ -431,17 +432,98 @@ function moderationTab() {
 	);
 }
 
+function categorySelect(selectedId, noneLabel) {
+	return h('select', {},
+		h('option', { value: '' }, noneLabel),
+		state.guild.voice.categories.map((category) => h('option', { value: category.id, selected: category.id === selectedId }, category.name)));
+}
+
+function limitInput(value) {
+	return h('input', { type: 'number', min: '0', max: String(state.guild.voice.maxLimit), value: String(value) });
+}
+
+// One card per hub: its settings, editable, or — if its channel was deleted —
+// the choice to forget it or recreate it.
+function hubCard(hub) {
+	if (!hub.exists) {
+		return h('section', { class: 'card' },
+			h('h2', {}, `Deleted hub (${hub.channelId})`),
+			h('div', { class: 'warning' }, 'This hub’s voice channel was deleted in Discord. Forget it, or recreate the channel with the same settings.'),
+			h('div', { class: 'row' },
+				btn('Restore', 'primary', (e) => act('voice.restoreHub', { hubId: hub.channelId }, e.target)),
+				btn('Forget', 'danger', confirmThen('Forget this hub?', (e) => act('voice.pruneHub', { hubId: hub.channelId }, e.target)))));
+	}
+	const template = h('input', { value: hub.nameTemplate, maxlength: '100' });
+	const defaultLimit = limitInput(hub.defaultLimit);
+	const minLimit = limitInput(hub.minLimit);
+	const maxLimit = limitInput(hub.maxLimit);
+	const category = categorySelect(hub.categoryId, 'The hub’s own category');
+	return h('section', { class: 'card' },
+		h('h2', {}, hub.name),
+		h('div', { class: 'row' }, field('Temp channel name — {owner} is the owner’s name', template)),
+		h('div', { class: 'row' },
+			field('Default limit (0 = none)', defaultLimit, true),
+			field('Owners can set from', minLimit, true),
+			field('…up to', maxLimit, true),
+			field('Temp channels go in', category)),
+		h('div', { class: 'row' },
+			btn('Save', 'primary', (e) => act('voice.editHub', {
+				hubId: hub.channelId,
+				nameTemplate: template.value,
+				defaultLimit: defaultLimit.value,
+				minLimit: minLimit.value,
+				maxLimit: maxLimit.value,
+				categoryId: category.value || null,
+			}, e.target)),
+			btn('Remove hub', 'danger', confirmThen(`Remove the hub and delete #${hub.name}?`, (e) => act('voice.removeHub', { hubId: hub.channelId }, e.target)))),
+		h('p', { class: 'muted' }, 'Changes apply to temp channels created from now on.'));
+}
+
+function voiceTab() {
+	const voice = state.guild.voice;
+	const hubIds = new Set(voice.hubs.map((hub) => hub.channelId));
+	const existing = h('select', {}, voice.voiceChannels.filter((c) => !hubIds.has(c.id)).map((c) => h('option', { value: c.id }, c.name)));
+	const existingCategory = categorySelect(null, 'The hub’s own category');
+	const newName = h('input', { placeholder: '➕ Join to Create' });
+	const newCategory = categorySelect(null, 'No category');
+
+	return h('div', {},
+		card('Live temporary channels', 'Every temp channel open right now. Closing one disconnects everyone in it and deletes it.',
+			table(['Channel', 'Owner', 'In it', 'Limit', ''], voice.tempChannels.map((temp) => {
+				const others = temp.members.filter((m) => m.id !== temp.ownerId);
+				const newOwner = h('select', {}, others.map((m) => h('option', { value: m.id }, m.name)));
+				return h('tr', {},
+					h('td', {}, temp.name, temp.locked ? h('div', { class: 'muted' }, '🔒 locked') : null),
+					h('td', {}, userLabel(temp.ownerName, temp.ownerId)),
+					h('td', {}, temp.members.length ? temp.members.map((m) => m.name).join(', ') : h('span', { class: 'muted' }, 'empty')),
+					h('td', {}, temp.userLimit || 'none'),
+					h('td', {},
+						others.length ? h('div', { class: 'row' }, newOwner, btn('Transfer', 'secondary', (e) => act('voice.transferTemp', { channelId: temp.channelId, userId: newOwner.value }, e.target))) : null,
+						btn('Close', 'danger', confirmThen(`Close #${temp.name}? Everyone in it is disconnected.`, (e) => act('voice.closeTemp', { channelId: temp.channelId }, e.target)))));
+			}), 'No temp channels are open.')),
+		card('Owner controls', 'Which /vc commands temp channel owners may use. /vc claim always works, so an abandoned channel can be taken over.',
+			h('div', { class: 'checks' }, voice.ownerControls.map((control) => h('label', {},
+				h('input', { type: 'checkbox', checked: control.allowed, onchange: (e) => act('voice.setOwnerControl', { control: control.key, allowed: e.target.checked }, e.target) }),
+				h('span', {}, h('strong', {}, control.label), ' ', h('span', { class: 'muted' }, control.command)))))),
+		voice.hubs.length ? voice.hubs.map(hubCard) : card('Hubs', null, h('p', { class: 'muted' }, 'No hubs yet. Add one below.')),
+		card('Add a hub', 'Members who join a hub get their own temporary voice channel.',
+			h('h3', {}, 'Use an existing voice channel'),
+			existing.options.length
+				? h('div', { class: 'row' }, field('Voice channel', existing), field('Temp channels go in', existingCategory),
+					btn('Make it a hub', 'primary', (e) => act('voice.addHub', { channelId: existing.value, categoryId: existingCategory.value || null }, e.target)))
+				: h('p', { class: 'muted' }, 'Every voice channel is already a hub.'),
+			h('h3', {}, 'Or create a new one'),
+			h('div', { class: 'row' }, field('Name', newName), field('Category', newCategory),
+				btn('Create hub', 'primary', (e) => act('voice.createHub', { name: newName.value, categoryId: newCategory.value || null }, e.target)))),
+	);
+}
+
 function otherTab() {
 	const guild = state.guild;
 	return h('div', {},
 		card('Active giveaways', null, table(['Prize', 'Channel', 'Winners', 'Entries', 'Ends', ''], guild.giveaways.map((g) => h('tr', {},
 			h('td', {}, g.prize), h('td', {}, channelName(g.channelId)), h('td', {}, g.winnerCount), h('td', {}, g.entries), h('td', {}, formatDate(g.endsAt)),
 			h('td', {}, btn('End now', 'danger', confirmThen(`End "${g.prize}" now and draw winners?`, (e) => act('giveaways.end', { giveawayId: g.id }, e.target)))))), 'No active giveaways.')),
-		card('Voice hubs', 'Join-to-create channels. Create and remove hubs with /voice in Discord.',
-			table(['Hub', 'Category'], guild.voice.hubs.map((hub) => h('tr', {}, h('td', {}, hub.name ?? `Deleted (${hub.channelId})`), h('td', {}, hub.categoryId ?? '—'))), 'No hubs.'),
-			h('div', { class: 'row' },
-				h('span', {}, 'Owners can /vc kick: ', pill(!guild.voice.ownerKickDisabled, 'Yes', 'No')),
-				btn(guild.voice.ownerKickDisabled ? 'Allow' : 'Disallow', 'secondary', (e) => act('voice.setOwnerKick', { enabled: guild.voice.ownerKickDisabled }, e.target)))),
 		card('Security', 'Set these up with /security in Discord; they create channels and post messages.',
 			h('div', { class: 'row' },
 				h('span', {}, 'Verification: ', guild.security.screeningChannelId ? `on in ${channelName(guild.security.screeningChannelId)}` : 'off'),

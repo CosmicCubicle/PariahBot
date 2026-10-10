@@ -12,7 +12,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 
 ## Features
 
-- **Temporary voice channels** — join-to-create hubs, owner self-service controls (`/vc`), automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted.
+- **Temporary voice channels** — join-to-create hubs with their own name template and user limits, owner self-service controls (`/vc`) that admins can switch off one by one, automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted. Also managed from the dashboard's Voice tab, including closing live channels.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
@@ -80,7 +80,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/ping` | Reports bot and Discord API latency. |
 | `/level` | `rank` for your (or someone's) level and XP, `leaderboard` for the server top 10. |
 | `/vc` | Controls for the temporary voice channel you currently own: `name`, `limit`, `lock`, `unlock`, `kick`, `claim`, `transfer`. |
-| `/voice` | (Admin) Voice hub management: `add`, `create`, `remove`, `list`, `audit`, `disable-owner-kick`, `enable-owner-kick`. |
+| `/voice` | (Admin) Voice hub management: `add`, `create`, `edit`, `remove`, `list`, `audit`, `owner-control`, `disable-owner-kick`, `enable-owner-kick`. |
 | `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
