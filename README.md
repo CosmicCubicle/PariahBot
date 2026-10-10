@@ -2,7 +2,7 @@
 
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
-auto-deletion, anti-spam, banned words, giveaways, activity levels, Twitch and YouTube
+auto-deletion, anti-spam, banned words, moderation, giveaways, activity levels, Twitch and YouTube
 alerts, Instagram post alerts, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
@@ -16,6 +16,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mod roles always skipped.
+- **Moderation** — `/mod` kicks, bans (permanent or temporary), softbans and times out members, also from a right-click menu. Admins and mod roles can't be targeted, the member is DMed first, and every action is reported through the admin alerts.
 - **Banned words** — blocks messages containing words from ready-made lists (Discord's profanity, sexual content and slur lists, plus scams, harassment and drugs) and the server's own custom words, using Discord AutoMod, so nobody sees them. Each block is reported through the admin alerts. Needs the bot to have Manage Server.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
@@ -80,6 +81,7 @@ role (`/setup mod-role add`). Manage Channels alone is not sufficient.
 | `/roles` | (Admin) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `mod-role` (`add`, `remove`, `list`, `clear`), `streamer-role`. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
+| `/mod` | (Admin) Moderation: `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
 | `/bannedwords` | (Admin) Banned words via Discord AutoMod: `enable`, `disable`, `list add`/`remove`, `word add`/`remove`, `status`. |
 | `/autodelete` | (Admin) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/alerts` | (Admin) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |

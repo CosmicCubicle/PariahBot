@@ -257,9 +257,9 @@ scoped to `interaction.guildId`.
 
 ## 9. Destructive actions
 
-[lib/honeypot.js](lib/honeypot.js) is the **only** code path that bans or
-kicks. If you add another, it has to follow the same invariants and be
-recorded in WorkingAgreements.md:
+[lib/honeypot.js](lib/honeypot.js) and [lib/moderation.js](lib/moderation.js)
+are the **only** code paths that ban or kick. If you add another, it has to
+follow the same invariants and be recorded in WorkingAgreements.md:
 
 1. **Admins and mod-role members are always skipped**, checked before any
    removal.

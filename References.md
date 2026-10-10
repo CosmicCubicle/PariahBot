@@ -63,5 +63,7 @@ from them, it's on purpose.
 | Buttons, including clicks from a DM | [lib/hubDesync.js](lib/hubDesync.js) |
 | A shared precondition check | [lib/vcScope.js](lib/vcScope.js) |
 | Best-effort event handling | [events/messageCreate.js](events/messageCreate.js) |
-| A destructive action | [lib/honeypot.js](lib/honeypot.js) |
+| A destructive action | [lib/honeypot.js](lib/honeypot.js), or `checkTarget` in [lib/moderation.js](lib/moderation.js) for one a moderator runs |
+| A right-click (context menu) command with a form | [commands/kickMember.js](commands/kickMember.js) and `openActionModal` in [lib/moderation.js](lib/moderation.js) |
+| Something scheduled that must survive restarts | temporary bans in [lib/moderation.js](lib/moderation.js), or [lib/giveaways.js](lib/giveaways.js) |
 | Managing Discord AutoMod rules without overwriting an admin's edits | `syncGuild` in [lib/bannedWords.js](lib/bannedWords.js) |
