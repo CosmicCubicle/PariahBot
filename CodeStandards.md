@@ -500,8 +500,11 @@ because switching it on creates real AutoMod rules in the server.
    - an event handler checks per message or per execution
    - a poller filters its rows **straight off the database read**, before any
      external request, so a switched-off guild costs no API quota
-4. Add it to the dashboard (`guildSnapshot` renders from `features.list`, so
-   usually nothing to do) and to the wiki's Feature Switches page.
+4. Add it to the dashboard. The **Features** tab needs nothing — it renders
+   from `features.list`. If the feature has a tab of its own, add its key to
+   that tab's entry in `TABS` in [dashboard/app.js](dashboard/app.js), so the
+   tab hides with it; if it shares a tab, wrap its cards in `ifFeature`.
+   Then update the wiki's Feature Switches page.
 5. Test the default, that an absent row means the default, and that switches
    don't leak between guilds — see [test/features.test.js](test/features.test.js).
 
