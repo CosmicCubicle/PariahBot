@@ -4,6 +4,7 @@ const { handleHubButtonInteraction } = require('../lib/hubDesync');
 const { handleRoleMenuButtonInteraction, handleRoleMenuSelectInteraction } = require('../lib/roleMenus');
 const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require('../lib/captcha');
 const { handleEntryInteraction } = require('../lib/giveaways');
+const features = require('../lib/features');
 const { handleModerationModal } = require('../lib/moderation');
 
 async function replyWithError(interaction, error) {
@@ -81,6 +82,18 @@ module.exports = {
 
 		const command = interaction.client.commands.get(interaction.commandName);
 		if (!command) return;
+
+		// A switched-off feature set (#69). The slash command stays registered with
+		// Discord either way, so it is still in the picker and has to answer for
+		// itself — disabledMessage names the command that turns it back on.
+		//
+		// Not audit-logged, for the same reason the autocomplete branch above skips
+		// it: nothing ran, and routing every blocked attempt to the error channel
+		// would alert admins about their own setting working correctly.
+		if (command.feature && !features.isEnabled(interaction.guildId, command.feature)) {
+			await interaction.reply({ content: features.disabledMessage(command.feature), ephemeral: true }).catch(() => null);
+			return;
+		}
 
 		const start = Date.now();
 		try {

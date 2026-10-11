@@ -4,6 +4,7 @@ const guildSettings = require('../state/guildSettings');
 const { LISTS } = require('../lib/bannedWordLists');
 const { MAX_CUSTOM_WORDS, addCustomWords, normalizeWord, requireManageGuild, syncGuild } = require('../lib/bannedWords');
 const { isMod, requireAdmin, requireMod } = require('../lib/permissions');
+const features = require('../lib/features');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -36,8 +37,7 @@ function reportingNote(guildId) {
 // After any change to the lists or words: only touches Discord when the
 // feature is on. Defers first, since syncing is a few API round trips.
 async function applyChange(interaction, summary) {
-	const { bannedWordsEnabled } = guildSettings.getGuildSettings(interaction.guildId);
-	if (!bannedWordsEnabled) {
+	if (!features.isEnabled(interaction.guildId, 'bannedWords')) {
 		await interaction.reply({ content: `${summary}\nBanned words are off, so nothing is blocked yet — \`/bannedwords enable\` turns them on.`, ephemeral: true });
 		return;
 	}
@@ -59,13 +59,13 @@ async function handleEnable(interaction) {
 	}
 
 	await interaction.deferReply({ ephemeral: true });
-	guildSettings.enableBannedWords(interaction.guildId);
+	features.setEnabled(interaction.guildId, 'bannedWords', true);
 	try {
 		await syncGuild(interaction.guild);
 	} catch (error) {
 		// Left off if the rules couldn't be made, so the setting never claims
 		// to be blocking words that Discord isn't.
-		guildSettings.disableBannedWords(interaction.guildId);
+		features.setEnabled(interaction.guildId, 'bannedWords', false);
 		throw error;
 	}
 
@@ -80,7 +80,7 @@ async function handleEnable(interaction) {
 
 async function handleDisable(interaction) {
 	requireAdmin(interaction);
-	guildSettings.disableBannedWords(interaction.guildId);
+	features.setEnabled(interaction.guildId, 'bannedWords', false);
 
 	await interaction.deferReply({ ephemeral: true });
 	try {
@@ -135,7 +135,7 @@ function fitField(lines, empty) {
 async function handleStatus(interaction) {
 	requireMod(interaction);
 
-	const { bannedWordsEnabled } = guildSettings.getGuildSettings(interaction.guildId);
+	const bannedWordsEnabled = features.isEnabled(interaction.guildId, 'bannedWords');
 	const lists = bannedWordStore.listLists(interaction.guildId).filter((key) => LISTS[key]);
 	const words = bannedWordStore.listWords(interaction.guildId);
 
@@ -176,6 +176,9 @@ function listOption(option, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'bannedWords',
 	data: new SlashCommandBuilder()
 		.setName('bannedwords')
 		.setDescription('Block messages containing banned words, using Discord AutoMod.')

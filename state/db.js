@@ -290,6 +290,16 @@ db.exec(`
 
 	-- One row per member who pressed Enter; the primary key is what makes a
 	-- second press a harmless no-op.
+	-- Per-guild feature switches (#69). A missing row means "the default for
+	-- that feature" (lib/features.js owns the defaults), so existing servers
+	-- need no backfill and a newly added feature ships without one.
+	CREATE TABLE IF NOT EXISTS guild_feature_toggles (
+		guild_id TEXT NOT NULL,
+		feature  TEXT NOT NULL,
+		enabled  INTEGER NOT NULL,
+		PRIMARY KEY (guild_id, feature)
+	);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id     TEXT NOT NULL,
@@ -423,11 +433,24 @@ if (!hasColumn('guild_settings', 'ban_appeal_note')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN ban_appeal_note TEXT');
 }
 
-// /bannedwords on or off. A separate flag rather than "a set value is on",
-// because there's no single value to set: the lists and words are kept
-// while it's off, so /bannedwords enable can bring the same setup back.
-if (!hasColumn('guild_settings', 'banned_words_enabled')) {
-	db.exec('ALTER TABLE guild_settings ADD COLUMN banned_words_enabled INTEGER NOT NULL DEFAULT 0');
+// /bannedwords on or off was guild_settings.banned_words_enabled, a flag of
+// its own because there's no single value whose presence means "on" — the
+// lists and words are kept while it's off. #69 made feature switches generic,
+// so it moves into guild_feature_toggles and the column goes.
+//
+// INSERT OR IGNORE is what makes this one-time: once a toggle row exists for
+// this guild, a later startup cannot overwrite a deliberate change. That is
+// the trap the mod_role_id migration at the bottom of this file had to undo
+// with a follow-up UPDATE, and the primary key avoids it here for free.
+//
+// Fresh installs never create the column at all, so this whole block is
+// skipped for them.
+if (hasColumn('guild_settings', 'banned_words_enabled')) {
+	db.exec(`
+		INSERT OR IGNORE INTO guild_feature_toggles (guild_id, feature, enabled)
+		SELECT guild_id, 'bannedWords', banned_words_enabled FROM guild_settings;
+	`);
+	db.exec('ALTER TABLE guild_settings DROP COLUMN banned_words_enabled');
 }
 
 // When a live item was last confirmed still live — refreshed on every poll

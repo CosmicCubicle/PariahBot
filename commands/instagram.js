@@ -163,6 +163,9 @@ const HANDLERS = {
 };
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'instagram',
 	data: new SlashCommandBuilder()
 		.setName('instagram')
 		.setDescription('Share new Instagram posts from followed accounts in a dedicated channel.')

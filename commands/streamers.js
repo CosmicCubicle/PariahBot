@@ -285,6 +285,9 @@ function accountOption(option, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'streamers',
 	data: new SlashCommandBuilder()
 		.setName('streamers')
 		.setDescription('Twitch and YouTube alerts: streamer-role members link themselves, admins can add anyone.')

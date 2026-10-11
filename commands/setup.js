@@ -1,6 +1,9 @@
-const { SlashCommandBuilder, Colors } = require('discord.js');
+const { SlashCommandBuilder, Colors, EmbedBuilder } = require('discord.js');
 const guildSettings = require('../state/guildSettings');
 const { requireAdmin } = require('../lib/permissions');
+const features = require('../lib/features');
+
+const EMBED_COLOR = 0x5865f2;
 
 // Accepts a hex code (with or without '#') or a named color from discord.js's own
 // Colors enum (case-insensitive, e.g. "red", "DarkRed", "blurple").
@@ -215,8 +218,97 @@ function addStaffRoleGroup(builder, group, description) {
 			.setDescription(`(Admin) Remove all configured ${label}s.`)));
 }
 
+
+// --- Feature switches (#69) ----------------------------------------------------
+
+// Discord caps a string option at 25 choices; there are 12 features, so the
+// whole list fits and no autocomplete is needed. Revisit if that changes.
+function featureChoices() {
+	return features.FEATURE_KEYS.map((key) => ({ name: features.FEATURES[key].label, value: key }));
+}
+
+function featureLine({ label, enabled, commands, isDefault }) {
+	const state = enabled ? '🟢 on' : '🔴 off';
+	const note = isDefault ? ' *(default)*' : '';
+	return `${state} **${label}**${note} — ${commands.join(', ')}`;
+}
+
+async function handleFeatureList(interaction) {
+	requireAdmin(interaction);
+
+	const embed = new EmbedBuilder()
+		.setTitle('Feature switches')
+		.setColor(EMBED_COLOR)
+		.setDescription(features.list(interaction.guildId).map(featureLine).join('\n'))
+		.setFooter({ text: 'Switch one with /setup feature enable or disable.' });
+
+	await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+// Shared by enable and disable: the only difference is the stored value and
+// the wording, and the "already in that state" case is worth reporting rather
+// than silently succeeding, so an admin knows nothing changed.
+async function setFeature(interaction, enabled) {
+	requireAdmin(interaction);
+
+	const key = interaction.options.getString('feature', true);
+	if (!features.isFeature(key)) {
+		throw new Error(`There is no feature called \`${key}\`. Use \`/setup feature list\` to see them.`);
+	}
+
+	const { label } = features.FEATURES[key];
+	const was = features.isEnabled(interaction.guildId, key);
+	features.setEnabled(interaction.guildId, key, enabled);
+
+	if (was === enabled) {
+		await interaction.reply({ content: `**${label}** was already ${enabled ? 'on' : 'off'} — nothing changed.`, ephemeral: true });
+		return;
+	}
+
+	const lines = enabled
+		? [`**${label}** is on for this server.`]
+		: [
+			`**${label}** is off for this server. Its settings are kept, so switching it back on restores them.`,
+			'Anything already running finishes: an open giveaway still draws a winner, and temporary voice channels still clean themselves up.',
+			'Its commands stay visible in Discord — they are registered globally and will reply that the feature is off.',
+		];
+
+	await interaction.reply({ content: lines.join('\n'), ephemeral: true });
+}
+
+const FEATURE_HANDLERS = {
+	list: handleFeatureList,
+	enable: (interaction) => setFeature(interaction, true),
+	disable: (interaction) => setFeature(interaction, false),
+};
+
+function addFeatureGroup(builder) {
+	return builder.addSubcommandGroup((g) => g
+		.setName('feature')
+		.setDescription('Switch whole feature sets on or off for this server.')
+		.addSubcommand((sub) => sub
+			.setName('list')
+			.setDescription('(Admin) Show every feature set and whether it is on.'))
+		.addSubcommand((sub) => sub
+			.setName('enable')
+			.setDescription('(Admin) Switch a feature set on.')
+			.addStringOption((option) => option
+				.setName('feature')
+				.setDescription('Which feature set')
+				.addChoices(...featureChoices())
+				.setRequired(true)))
+		.addSubcommand((sub) => sub
+			.setName('disable')
+			.setDescription('(Admin) Switch a feature set off, keeping its settings.')
+			.addStringOption((option) => option
+				.setName('feature')
+				.setDescription('Which feature set')
+				.addChoices(...featureChoices())
+				.setRequired(true))));
+}
+
 module.exports = {
-	data: addStaffRoleGroup(addStaffRoleGroup(new SlashCommandBuilder()
+	data: addFeatureGroup(addStaffRoleGroup(addStaffRoleGroup(new SlashCommandBuilder()
 		.setName('setup')
 		.setDescription("Configure this server's roles for PariahBot.")
 		.addSubcommand((sub) => addRoleSetupOptions(sub
@@ -226,10 +318,17 @@ module.exports = {
 	'mod-role', 'Roles that count as mods for PariahBot — any number can be configured.')
 		.addSubcommand((sub) => addRoleSetupOptions(sub
 			.setName('streamer-role')
-			.setDescription('(Admin) Set, create, or clear the streamer role.'))),
+			.setDescription('(Admin) Set, create, or clear the streamer role.')))),
 	async execute(interaction) {
 		const group = interaction.options.getSubcommandGroup(false);
 		const sub = interaction.options.getSubcommand();
+
+		if (group === 'feature') {
+			const handler = FEATURE_HANDLERS[sub];
+			if (!handler) throw new Error(`Unknown /setup feature subcommand: ${sub}`);
+			await handler(interaction);
+			return;
+		}
 
 		if (STAFF_ROLE_KINDS[group]) {
 			const handler = STAFF_ROLE_HANDLERS[sub];

@@ -179,6 +179,9 @@ const HANDLERS = {
 };
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'tempVoice',
 	data: new SlashCommandBuilder()
 		.setName('vc')
 		.setDescription('Manage the temporary voice channel you currently own.')

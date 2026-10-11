@@ -122,6 +122,13 @@ function pill(on, onText = 'On', offText = 'Off') {
 	return h('span', { class: `pill ${on ? 'on' : 'off'}` }, on ? onText : offText);
 }
 
+// Hides a group of cards when its feature set is switched off (#69). Needed
+// inside a tab that holds more than one feature — hiding the whole tab would
+// take the others with it. h() drops a null child, so this composes cleanly.
+function ifFeature(key, ...nodes) {
+	return featureOn(key) ? nodes : null;
+}
+
 function table(headers, rows, empty) {
 	if (!rows.length) return h('p', { class: 'muted' }, empty);
 	return h('table', {}, h('thead', {}, h('tr', {}, headers.map((header) => h('th', {}, header)))), h('tbody', {}, rows));
@@ -218,15 +225,30 @@ async function showStatus() {
 
 // --- A server --------------------------------------------------------------------
 
+// Third entry: the feature sets a tab is for (#69). A tab is shown when any of
+// them is on, not all — the alerts tab holds three independent features, and
+// hiding it because one is off would hide the other two. A tab with no features
+// is always shown: General holds settings that aren't part of any feature, and
+// Features is the switchboard, which has to stay reachable or there would be no
+// way back from switching something off.
 const TABS = [
-	['general', 'General'],
-	['bannedWords', 'Banned words'],
-	['alerts', 'Stream, Instagram & RSS'],
-	['autoDelete', 'Auto-delete'],
-	['moderation', 'Moderation'],
-	['voice', 'Voice'],
-	['other', 'Giveaways & more'],
+	['general', 'General', null],
+	['features', 'Features', null],
+	['bannedWords', 'Banned words', ['bannedWords']],
+	['alerts', 'Stream, Instagram & RSS', ['streamers', 'instagram', 'rss']],
+	['autoDelete', 'Auto-delete', ['autoDelete']],
+	['moderation', 'Moderation', ['moderation']],
+	['voice', 'Voice', ['tempVoice']],
+	['other', 'Giveaways & more', ['giveaways', 'captcha', 'honeypot', 'leveling']],
 ];
+
+function featureOn(key) {
+	return state.guild?.features?.find((feature) => feature.key === key)?.enabled ?? true;
+}
+
+function visibleTabs() {
+	return TABS.filter(([, , keys]) => !keys || keys.some(featureOn));
+}
 
 async function openGuild(guildId, resetTab = true) {
 	try {
@@ -243,11 +265,18 @@ async function openGuild(guildId, resetTab = true) {
 
 function renderGuild() {
 	const guild = state.guild;
-	const tabs = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([key, label]) => h('button', {
+	const shown = visibleTabs();
+
+	// Switching a feature off can hide the tab you're looking at — including the
+	// one you just used to do it, if it was that feature's own tab. Falling back
+	// to General keeps the page from rendering a section that is no longer listed.
+	if (!shown.some(([key]) => key === state.tab)) state.tab = 'general';
+
+	const tabs = h('div', { class: 'tabs', role: 'tablist' }, shown.map(([key, label]) => h('button', {
 		class: state.tab === key ? 'active' : '', type: 'button', role: 'tab',
 		onclick: () => { state.tab = key; renderGuild(); },
 	}, label)));
-	const sections = { general: generalTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, voice: voiceTab, other: otherTab };
+	const sections = { general: generalTab, features: featuresTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, voice: voiceTab, other: otherTab };
 	$('main').replaceChildren(
 		h('h1', {}, guild.name),
 		h('p', { class: 'muted' }, `${guild.memberCount} members · ID ${guild.id}`),
@@ -272,6 +301,44 @@ function permissionWarnings() {
 		h('strong', {}, 'The bot is missing permissions here: '),
 		missing.map(([, name, use]) => `${name} (${use})`).join(', '),
 		'. Add them to its PariahBot role in Server Settings → Roles.');
+}
+
+// The feature switchboard (#69). Its own tab rather than a section inside
+// General, because it governs every other tab: switching something off here
+// removes its tab on the next render.
+function featuresTab() {
+	const list = state.guild.features ?? [];
+	const off = list.filter((feature) => !feature.enabled);
+
+	return h('div', {},
+		card('Feature switches', 'Switch a whole feature set off for this server. Its settings are kept, so switching it back on restores them.',
+			table(['Feature', 'Commands', 'State', ''], list.map((feature) => h('tr', {},
+				h('td', {}, feature.label),
+				h('td', {}, h('span', { class: 'muted' }, feature.commands.join(', '))),
+				h('td', {}, pill(feature.enabled), feature.isDefault ? h('span', { class: 'muted' }, ' default') : null),
+				h('td', {}, feature.enabled
+					? btn('Switch off', 'danger', confirmThen(
+						`Switch off ${feature.label}? Its settings are kept, and anything already running finishes.`,
+						(e) => act('features.set', { feature: feature.key, enabled: false }, e.target)))
+					: btn('Switch on', 'primary', (e) => act('features.set', { feature: feature.key, enabled: true }, e.target))))),
+				'No switchable features.'),
+			// Stated here because it is the question this page raises: the tab is
+			// gone, so where did the commands go? They cannot be hidden — the bot
+			// registers commands globally, for every server at once.
+			h('p', { class: 'muted' },
+				'A switched-off feature keeps its commands in Discord’s command picker — '
+				+ 'they are registered for every server at once, so they cannot be hidden for one. '
+				+ 'Running one replies that the feature is off, and /help marks it.'),
+			off.length
+				? h('p', { class: 'muted' }, `Switched off: ${off.map((feature) => feature.label).join(', ')}. Their tabs are hidden until they are switched back on.`)
+				: null),
+		card('Always on', 'These have no switch, on purpose.',
+			table(['What', 'Why'], [
+				h('tr', {}, h('td', {}, 'Feature switches, server roles (/setup)'), h('td', {}, 'This page. Switching it off would leave no way to switch anything back on.')),
+				h('tr', {}, h('td', {}, '/help, /ping'), h('td', {}, 'Not features.')),
+				h('tr', {}, h('td', {}, 'Admin alerts'), h('td', {}, 'Other features report their failures through it.')),
+				h('tr', {}, h('td', {}, 'This dashboard'), h('td', {}, 'Already switched on the host, with DASHBOARD_PORT.')),
+			])));
 }
 
 function generalTab() {
@@ -371,32 +438,38 @@ function alertsTab() {
 	const feedMessage = h('input', { placeholder: 'Optional. {feed} {title} {url} {role}' });
 
 	return h('div', {},
-		alertSettingsCard('Stream alerts', 'Twitch live, and YouTube live and uploads.', 'streams', streams, '{name} {title} {url} {platform} {role}',
-			h('p', {}, streams.platforms.map((p) => [pill(p.configured, `${p.label} configured`, `${p.label} not set up`), ' ']))),
-		card(`Streamers (${streams.links.length})`, null,
-			table(['Channel', 'Platform', 'Member', 'Added by', ''], streams.links.map((link) => h('tr', {},
-				h('td', {}, link.accountName),
-				h('td', {}, link.platform),
-				h('td', {}, link.userId ? userLabel(link.memberName, link.userId) : '—'),
-				h('td', {}, link.manual ? 'Admin' : 'Streamer role'),
-				h('td', {}, btn('Remove', 'danger', confirmThen(`Remove ${link.accountName}?`, (e) => act('streams.remove', { platform: link.platform, accountId: link.accountId }, e.target)))))), 'No streamers yet.'),
-			h('div', { class: 'row' }, field('Platform', platform, true), field('Add a channel', account), btn('Add', 'primary', (e) => act('streams.add', { platform: platform.value, account: account.value }, e.target)))),
-		alertSettingsCard('Instagram', instagram.configured ? 'New posts and reels from followed accounts.' : 'Instagram isn’t set up on the host — see the wiki’s Instagram Alerts page.', 'instagram', instagram, '{name} {title} {url} {platform} {role}', null),
-		card(`Instagram accounts (${instagram.accounts.length})`, null,
-			table(['Account', 'Since', ''], instagram.accounts.map((a) => h('tr', {},
-				h('td', {}, `@${a.username}`),
-				h('td', {}, formatDate(a.addedAt)),
-				h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following @${a.username}?`, (e) => act('instagram.remove', { accountId: a.accountId }, e.target)))))), 'No accounts yet.'),
-			h('div', { class: 'row' }, field('Follow an account', igAccount), btn('Add', 'primary', (e) => act('instagram.add', { account: igAccount.value }, e.target)))),
-		card(`RSS feeds (${rss.feeds.length} of ${rss.max})`, 'Each feed posts to its own channel. Only items published after adding are posted.',
-			table(['Feed', 'Channel', 'Last checked', ''], rss.feeds.map((feed) => h('tr', {},
-				h('td', {}, h('div', {}, feed.title), h('div', { class: 'muted' }, feed.url), feed.lastError ? h('div', { class: 'bad' }, feed.lastError) : null),
-				h('td', {}, channelName(feed.channelId), feed.roleId ? h('div', { class: 'muted' }, `pings ${roleName(feed.roleId)}`) : null),
-				h('td', {}, formatDate(feed.lastCheckedAt)),
-				h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following ${feed.title}?`, (e) => act('rss.remove', { feedId: feed.id }, e.target)))))), 'No feeds yet.'),
-			h('div', { class: 'row' }, field('Feed address', feedUrl), field('Channel', feedChannel)),
-			h('div', { class: 'row' }, field('Ping role', feedRole), field('Custom message', feedMessage),
-				btn('Add feed', 'primary', (e) => act('rss.add', { url: feedUrl.value, channelId: feedChannel.value, roleId: feedRole.value || null, message: feedMessage.value }, e.target)))),
+		ifFeature('streamers',
+			alertSettingsCard('Stream alerts', 'Twitch live, and YouTube live and uploads.', 'streams', streams, '{name} {title} {url} {platform} {role}',
+				h('p', {}, streams.platforms.map((p) => [pill(p.configured, `${p.label} configured`, `${p.label} not set up`), ' ']))),
+			card(`Streamers (${streams.links.length})`, null,
+				table(['Channel', 'Platform', 'Member', 'Added by', ''], streams.links.map((link) => h('tr', {},
+					h('td', {}, link.accountName),
+					h('td', {}, link.platform),
+					h('td', {}, link.userId ? userLabel(link.memberName, link.userId) : '—'),
+					h('td', {}, link.manual ? 'Admin' : 'Streamer role'),
+					h('td', {}, btn('Remove', 'danger', confirmThen(`Remove ${link.accountName}?`, (e) => act('streams.remove', { platform: link.platform, accountId: link.accountId }, e.target)))))), 'No streamers yet.'),
+				h('div', { class: 'row' }, field('Platform', platform, true), field('Add a channel', account), btn('Add', 'primary', (e) => act('streams.add', { platform: platform.value, account: account.value }, e.target)))),
+		),
+		ifFeature('instagram',
+			alertSettingsCard('Instagram', instagram.configured ? 'New posts and reels from followed accounts.' : 'Instagram isn’t set up on the host — see the wiki’s Instagram Alerts page.', 'instagram', instagram, '{name} {title} {url} {platform} {role}', null),
+			card(`Instagram accounts (${instagram.accounts.length})`, null,
+				table(['Account', 'Since', ''], instagram.accounts.map((a) => h('tr', {},
+					h('td', {}, `@${a.username}`),
+					h('td', {}, formatDate(a.addedAt)),
+					h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following @${a.username}?`, (e) => act('instagram.remove', { accountId: a.accountId }, e.target)))))), 'No accounts yet.'),
+				h('div', { class: 'row' }, field('Follow an account', igAccount), btn('Add', 'primary', (e) => act('instagram.add', { account: igAccount.value }, e.target)))),
+		),
+		ifFeature('rss',
+			card(`RSS feeds (${rss.feeds.length} of ${rss.max})`, 'Each feed posts to its own channel. Only items published after adding are posted.',
+				table(['Feed', 'Channel', 'Last checked', ''], rss.feeds.map((feed) => h('tr', {},
+					h('td', {}, h('div', {}, feed.title), h('div', { class: 'muted' }, feed.url), feed.lastError ? h('div', { class: 'bad' }, feed.lastError) : null),
+					h('td', {}, channelName(feed.channelId), feed.roleId ? h('div', { class: 'muted' }, `pings ${roleName(feed.roleId)}`) : null),
+					h('td', {}, formatDate(feed.lastCheckedAt)),
+					h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following ${feed.title}?`, (e) => act('rss.remove', { feedId: feed.id }, e.target)))))), 'No feeds yet.'),
+				h('div', { class: 'row' }, field('Feed address', feedUrl), field('Channel', feedChannel)),
+				h('div', { class: 'row' }, field('Ping role', feedRole), field('Custom message', feedMessage),
+					btn('Add feed', 'primary', (e) => act('rss.add', { url: feedUrl.value, channelId: feedChannel.value, roleId: feedRole.value || null, message: feedMessage.value }, e.target)))),
+		),
 	);
 }
 
@@ -534,18 +607,28 @@ function voiceTab() {
 function otherTab() {
 	const guild = state.guild;
 	return h('div', {},
-		card('Active giveaways', null, table(['Prize', 'Channel', 'Winners', 'Entries', 'Ends', ''], guild.giveaways.map((g) => h('tr', {},
-			h('td', {}, g.prize), h('td', {}, channelName(g.channelId)), h('td', {}, g.winnerCount), h('td', {}, g.entries), h('td', {}, formatDate(g.endsAt)),
-			h('td', {}, btn('End now', 'danger', confirmThen(`End "${g.prize}" now and draw winners?`, (e) => act('giveaways.end', { giveawayId: g.id }, e.target)))))), 'No active giveaways.')),
-		card('Security', 'Set these up with /security in Discord; they create channels and post messages.',
-			h('div', { class: 'row' },
-				h('span', {}, 'Verification: ', guild.security.screeningChannelId ? `on in ${channelName(guild.security.screeningChannelId)}` : 'off'),
-				guild.security.screeningChannelId ? btn('Disable', 'danger', confirmThen('Disable verification?', (e) => act('security.disableCaptcha', {}, e.target))) : null),
-			h('div', { class: 'row' },
-				h('span', {}, 'Honeypot: ', guild.security.honeypotChannelId ? `on in ${channelName(guild.security.honeypotChannelId)} (${guild.security.honeypotAction === 'ban' ? 'ban' : 'softban'})` : 'off'),
-				guild.security.honeypotChannelId ? btn('Disable', 'danger', confirmThen('Disable the honeypot?', (e) => act('security.disableHoneypot', {}, e.target))) : null)),
-		card('Level leaderboard', null, table(['#', 'Member', 'Level', 'XP'], guild.levels.map((row, index) => h('tr', {},
-			h('td', {}, index + 1), h('td', {}, userLabel(row.name, row.userId)), h('td', {}, row.level), h('td', {}, row.xp))), 'Nobody has XP yet.')),
+		ifFeature('giveaways',
+			card('Active giveaways', null, table(['Prize', 'Channel', 'Winners', 'Entries', 'Ends', ''], guild.giveaways.map((g) => h('tr', {},
+				h('td', {}, g.prize), h('td', {}, channelName(g.channelId)), h('td', {}, g.winnerCount), h('td', {}, g.entries), h('td', {}, formatDate(g.endsAt)),
+				h('td', {}, btn('End now', 'danger', confirmThen(`End "${g.prize}" now and draw winners?`, (e) => act('giveaways.end', { giveawayId: g.id }, e.target)))))), 'No active giveaways.')),
+		),
+		// Captcha and honeypot are separate switches that share one card, so it
+		// shows while either is on, with the off one's row left out.
+		(featureOn('captcha') || featureOn('honeypot'))
+			? card('Security', 'Set these up with /security in Discord; they create channels and post messages.',
+				ifFeature('captcha',
+					h('div', { class: 'row' },
+						h('span', {}, 'Verification: ', guild.security.screeningChannelId ? `on in ${channelName(guild.security.screeningChannelId)}` : 'off'),
+						guild.security.screeningChannelId ? btn('Disable', 'danger', confirmThen('Disable verification?', (e) => act('security.disableCaptcha', {}, e.target))) : null)),
+				ifFeature('honeypot',
+					h('div', { class: 'row' },
+						h('span', {}, 'Honeypot: ', guild.security.honeypotChannelId ? `on in ${channelName(guild.security.honeypotChannelId)} (${guild.security.honeypotAction === 'ban' ? 'ban' : 'softban'})` : 'off'),
+						guild.security.honeypotChannelId ? btn('Disable', 'danger', confirmThen('Disable the honeypot?', (e) => act('security.disableHoneypot', {}, e.target))) : null)))
+			: null,
+		ifFeature('leveling',
+			card('Level leaderboard', null, table(['#', 'Member', 'Level', 'XP'], guild.levels.map((row, index) => h('tr', {},
+				h('td', {}, index + 1), h('td', {}, userLabel(row.name, row.userId)), h('td', {}, row.level), h('td', {}, row.xp))), 'Nobody has XP yet.')),
+		),
 	);
 }
 
