@@ -92,6 +92,12 @@ Use [commands/autodelete.js](commands/autodelete.js) as the reference.
   },
   ```
 
+- **Declare the feature set the command belongs to**, so an admin can switch
+  it off (§16): `feature: 'autoDelete',` beside `data` in the module's
+  exports. Leave it off only for a command that must always work — `/setup`,
+  `/help`, `/ping`, `/alerts`. A command spanning two features gates in its
+  handlers instead; [commands/security.js](commands/security.js) is the
+  example, and says why in a comment.
 - **The permission check is the first line** of every staff handler:
   `requireAdmin(interaction);` for admin-only ones, `requireMod(interaction);`
   for everything else staff can do (see §8).
@@ -462,3 +468,57 @@ that area.
   they can't collide with component ids in the `interactionCreate.js` chain.
   Recorded here only because it reads like a §5 breach at a glance. Keep
   modal input ids short and local; namespace the *modal's* own `customId`.
+
+## 16. Feature switches
+
+Admins can switch a whole feature set off per server (#69). The list, the
+defaults and the gate all live in [lib/features.js](lib/features.js); the
+stored rows are in `guild_feature_toggles` via
+[state/featureToggles.js](state/featureToggles.js).
+
+**A missing row means the default**, so a new feature needs no backfill and
+`reset` restores the default rather than storing a copy of it.
+
+**Defaults are ON**, except banned words. That isn't a style preference: a
+default of off would silently disable every feature in every existing server
+the moment the switch shipped. Banned words keeps its original opt-in default
+because switching it on creates real AutoMod rules in the server.
+
+### Adding a feature to the list
+
+1. Add an entry to `FEATURES` in `lib/features.js`. **The key is stored in the
+   database** — renaming one orphans every row that used it, so treat keys as
+   permanent.
+2. Declare it on the command: `feature: 'yourFeature',` beside `data` (§4).
+   That is the whole command-side gate; `events/interactionCreate.js` does the
+   rest.
+3. Gate anything that runs **without** a command, because the command gate
+   never sees it:
+   - a component handler checks **after** matching its `customId`, and replies
+     rather than returning `false` — `false` means "not my button", which
+     leaves the click unanswered
+   - an event handler checks per message or per execution
+   - a poller filters its rows **straight off the database read**, before any
+     external request, so a switched-off guild costs no API quota
+4. Add it to the dashboard (`guildSnapshot` renders from `features.list`, so
+   usually nothing to do) and to the wiki's Feature Switches page.
+5. Test the default, that an absent row means the default, and that switches
+   don't leak between guilds — see [test/features.test.js](test/features.test.js).
+
+### What "off" means
+
+**Stop new work; leave what is already running.** Switching a feature off never
+destroys its configuration, and never abandons something a member is waiting
+on. An open giveaway still draws its winner (so its entry button stays live on
+purpose — see the comment in `lib/giveaways.js`), temporary voice channels
+still clean themselves up, and per-channel auto-delete settings are kept.
+
+Banned words is the one feature whose switch reaches outside the bot: its rules
+live in the server, so `syncGuild` switches them off in Discord rather than
+deleting them, keeping any exemptions an admin added.
+
+**Commands stay registered with Discord.** Registration is global, so the bot
+cannot remove a command for one server — a switched-off feature's commands are
+still in the picker and must answer for themselves. That is why
+`disabledMessage` names the command that turns the feature back on, and why
+`/help` lists a disabled feature marked rather than hiding it.

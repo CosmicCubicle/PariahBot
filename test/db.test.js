@@ -29,8 +29,9 @@ function seedOldSchema() {
 	const old = new Database(file);
 	old.exec(`
 		CREATE TABLE guild_settings (
-			guild_id    TEXT PRIMARY KEY,
-			mod_role_id TEXT
+			guild_id              TEXT PRIMARY KEY,
+			mod_role_id           TEXT,
+			banned_words_enabled  INTEGER NOT NULL DEFAULT 0
 		);
 
 		CREATE TABLE role_menus (
@@ -50,7 +51,10 @@ function seedOldSchema() {
 
 		CREATE UNIQUE INDEX idx_role_menu_options_emoji ON role_menu_options (message_id, emoji);
 
-		INSERT INTO guild_settings (guild_id, mod_role_id) VALUES ('g1', 'legacy-mod-role');
+		-- g1 had banned words switched on, g2 never touched it. Both have to
+		-- survive the move to guild_feature_toggles with the right value.
+		INSERT INTO guild_settings (guild_id, mod_role_id, banned_words_enabled) VALUES ('g1', 'legacy-mod-role', 1);
+		INSERT INTO guild_settings (guild_id, mod_role_id, banned_words_enabled) VALUES ('g2', NULL, 0);
 		INSERT INTO role_menus (message_id, guild_id, channel_id, type) VALUES ('m1', 'g1', 'c1', 'dropdown');
 		INSERT INTO role_menu_options (message_id, role_id, emoji, label) VALUES ('m1', 'r1', '🎲', 'Gamer');
 	`);
@@ -100,6 +104,29 @@ test('the mod-role migration is one-time: a removed role is not resurrected', ()
 	const after = requireDbFresh();
 	const roles = after.prepare('SELECT role_id FROM guild_mod_roles WHERE guild_id = ?').all('g1');
 	assert.deepEqual(roles, [], 'nulling mod_role_id is what stops this rerunning every startup');
+});
+
+test('moves banned_words_enabled into guild_feature_toggles and drops the column', () => {
+	const db = requireDbFresh();
+
+	const rows = db.prepare("SELECT guild_id, enabled FROM guild_feature_toggles WHERE feature = 'bannedWords' ORDER BY guild_id").all();
+	assert.deepEqual(rows, [{ guild_id: 'g1', enabled: 1 }, { guild_id: 'g2', enabled: 0 }]);
+
+	assert.ok(!columns(db, 'guild_settings').includes('banned_words_enabled'), 'the old column has to go, or there are two sources of truth');
+});
+
+test('the banned-words move is one-time: a later change is not overwritten', () => {
+	const db = requireDbFresh();
+
+	// Simulates an admin switching it off after the migration ran. The mod-role
+	// migration needed a follow-up UPDATE to avoid resurrecting a removed value;
+	// here INSERT OR IGNORE plus the primary key is what prevents it, so this
+	// test is what proves that reasoning rather than just asserting it.
+	db.prepare("UPDATE guild_feature_toggles SET enabled = 0 WHERE guild_id = 'g1' AND feature = 'bannedWords'").run();
+
+	const after = requireDbFresh();
+	const row = after.prepare("SELECT enabled FROM guild_feature_toggles WHERE guild_id = 'g1' AND feature = 'bannedWords'").get();
+	assert.equal(row.enabled, 0, 'a restart must not switch a feature back on behind the admin');
 });
 
 test('migrations are idempotent across repeated requires', () => {

@@ -77,7 +77,6 @@ function getGuildSettings(guildId) {
 		instagramChannelId: row?.instagram_channel_id ?? null,
 		instagramRoleId: row?.instagram_role_id ?? null,
 		instagramMessage: row?.instagram_message ?? null,
-		bannedWordsEnabled: !!row?.banned_words_enabled,
 		warnEscalation: row?.warn_escalation_count
 			? {
 				count: row.warn_escalation_count,
@@ -360,28 +359,10 @@ function setBanAppealNote(guildId, note) {
 	upsertBanAppealNoteStmt.run({ guildId, note: note ?? null });
 }
 
-// /bannedwords on or off — see lib/bannedWords.js. Turning it off keeps the
-// guild's lists and words (state/bannedWords.js).
-const upsertBannedWordsEnabledStmt = db.prepare(`
-	INSERT INTO guild_settings (guild_id, banned_words_enabled)
-	VALUES (@guildId, @enabled)
-	ON CONFLICT(guild_id) DO UPDATE SET banned_words_enabled = excluded.banned_words_enabled
-`);
-
-function enableBannedWords(guildId) {
-	upsertBannedWordsEnabledStmt.run({ guildId, enabled: 1 });
-}
-
-function disableBannedWords(guildId) {
-	upsertBannedWordsEnabledStmt.run({ guildId, enabled: 0 });
-}
-
-const selectBannedWordsGuildsStmt = db.prepare('SELECT guild_id FROM guild_settings WHERE banned_words_enabled = 1');
-
-// For the startup re-sync in lib/bannedWords.js.
-function listBannedWordsGuilds() {
-	return selectBannedWordsGuildsStmt.all().map((row) => row.guild_id);
-}
+// /bannedwords on or off used to live here, as guild_settings.banned_words_enabled.
+// It is now one of the generic per-guild feature switches: see lib/features.js
+// and state/featureToggles.js. Nothing about the guild's lists and words moved
+// (they are still in state/bannedWords.js) — only the on/off flag did.
 
 module.exports = {
 	setAlertChannel,
@@ -417,7 +398,4 @@ module.exports = {
 	setInstagramMessage,
 	setWarnEscalation,
 	setBanAppealNote,
-	enableBannedWords,
-	disableBannedWords,
-	listBannedWordsGuilds,
 };

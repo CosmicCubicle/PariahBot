@@ -275,6 +275,9 @@ function buildRemoveRoleSubcommand(sub) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'roleMenus',
 	data: new SlashCommandBuilder()
 		.setName('roles')
 		.setDescription('Configure self-service role menus.')

@@ -3,6 +3,7 @@ const guildSettings = require('../state/guildSettings');
 const { requireAdmin, staffRoleIds } = require('../lib/permissions');
 const { setupScreeningChannel, applyVisibilityLockdown } = require('../lib/captcha');
 const { setupHoneypotChannel } = require('../lib/honeypot');
+const features = require('../lib/features');
 
 const EMBED_COLOR = 0x5865f2;
 const DEFAULT_SCREENING_CHANNEL_NAME = 'verify';
@@ -45,6 +46,7 @@ function requireMemberRole(interaction) {
 
 async function handleCaptchaSetup(interaction) {
 	requireAdmin(interaction);
+	features.requireEnabled(interaction, 'captcha');
 
 	const memberRole = requireMemberRole(interaction);
 	const adjustVisibility = interaction.options.getBoolean('adjust_visibility') ?? false;
@@ -99,6 +101,7 @@ async function handleCaptchaSetup(interaction) {
 
 async function handleCaptchaDisable(interaction) {
 	requireAdmin(interaction);
+	features.requireEnabled(interaction, 'captcha');
 
 	const { screeningChannelId } = guildSettings.getGuildSettings(interaction.guildId);
 	if (!screeningChannelId) {
@@ -117,6 +120,7 @@ async function handleCaptchaDisable(interaction) {
 
 async function handleHoneypotSetup(interaction) {
 	requireAdmin(interaction);
+	features.requireEnabled(interaction, 'honeypot');
 
 	const action = interaction.options.getString('action') ?? 'kick';
 
@@ -141,6 +145,7 @@ async function handleHoneypotSetup(interaction) {
 
 async function handleHoneypotDisable(interaction) {
 	requireAdmin(interaction);
+	features.requireEnabled(interaction, 'honeypot');
 
 	const { honeypotChannelId } = guildSettings.getGuildSettings(interaction.guildId);
 	if (!honeypotChannelId) {
@@ -161,8 +166,14 @@ async function handleStatus(interaction) {
 
 	const settings = guildSettings.getGuildSettings(interaction.guildId);
 
+	// A feature switched off (#69) is reported before its configuration: the
+	// configuration is still there and still correct, it just isn't running, and
+	// saying "screening channel: #verify" alone would imply it was.
+	const switchedOff = (feature) => `⛔ Switched off for this server — \`/setup feature enable feature:${feature}\`.`;
+
 	const captchaLines = settings.screeningChannelId
 		? [
+			...(features.isEnabled(interaction.guildId, 'captcha') ? [] : [switchedOff('captcha')]),
 			`Screening channel: <#${settings.screeningChannelId}>`,
 			settings.memberRoleId ? `Grants: <@&${settings.memberRoleId}>` : '⚠️ No member role set — verification will fail.',
 		]
@@ -170,6 +181,7 @@ async function handleStatus(interaction) {
 
 	const honeypotLines = settings.honeypotChannelId
 		? [
+			...(features.isEnabled(interaction.guildId, 'honeypot') ? [] : [switchedOff('honeypot')]),
 			`Trap channel: <#${settings.honeypotChannelId}>`,
 			`Action: ${settings.honeypotAction === 'ban' ? 'ban' : 'remove (softban)'}`,
 		]
@@ -203,6 +215,11 @@ function channelOption(option, description) {
 }
 
 module.exports = {
+	// No module-level `feature` (#69), unlike single-feature commands: /security
+	// spans two independent switches. The captcha and honeypot groups are gated
+	// in their own handlers, and `status` stays available either way — it reports
+	// on both, and an admin needs to be able to read the state of something they
+	// have switched off.
 	data: new SlashCommandBuilder()
 		.setName('security')
 		.setDescription("Anti-spam protections for this server.")

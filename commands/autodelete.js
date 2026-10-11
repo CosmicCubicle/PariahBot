@@ -109,6 +109,9 @@ function channelOption(option, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'autoDelete',
 	data: new SlashCommandBuilder()
 		.setName('autodelete')
 		.setDescription('(Mod) Automatically delete messages in a channel on a rolling basis.')

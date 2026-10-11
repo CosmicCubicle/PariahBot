@@ -196,6 +196,9 @@ function limitOption(option, name, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'tempVoice',
 	data: new SlashCommandBuilder()
 		.setName('voice')
 		.setDescription('Create and manage temporary voice channels.')

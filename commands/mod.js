@@ -235,6 +235,9 @@ function deleteMessagesOption(option, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'moderation',
 	data: new SlashCommandBuilder()
 		.setName('mod')
 		.setDescription('Warn, kick, ban and time out members, and see their history.')

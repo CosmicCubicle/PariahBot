@@ -117,6 +117,9 @@ function feedOption(option, description) {
 }
 
 module.exports = {
+	// Switchable feature set this command belongs to (lib/features.js).
+	// events/interactionCreate.js refuses it when the guild has it off.
+	feature: 'rss',
 	data: new SlashCommandBuilder()
 		.setName('rss')
 		.setDescription('Post new items from RSS and Atom feeds into channels.')

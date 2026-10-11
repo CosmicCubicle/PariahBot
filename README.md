@@ -12,6 +12,10 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 
 ## Features
 
+- **Switchable feature sets** — an admin can switch any feature set off for
+  their server with `/setup feature`, or from the dashboard. Settings are kept,
+  anything already running finishes, and `/help` marks what is off and how to
+  turn it back on.
 - **Temporary voice channels** — join-to-create hubs with their own name template and user limits, owner self-service controls (`/vc`) that admins can switch off one by one, automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted. Also managed from the dashboard's Voice tab, including closing live channels.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
@@ -86,7 +90,7 @@ Manage Channels alone is neither.
 | `/vc` | Controls for the temporary voice channel you currently own: `name`, `limit`, `lock`, `unlock`, `kick`, `claim`, `transfer`. |
 | `/voice` | (Mod) Voice hub management: `add`, `create`, `edit`, `remove`, `list`, `audit`, `owner-control`, `disable-owner-kick`, `enable-owner-kick`. |
 | `/roles` | (Mod) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
-| `/setup` | (Admin) Server roles: `member-role`, `admin-role` and `mod-role` (each `add`, `remove`, `list`, `clear`), `streamer-role`. |
+| `/setup` | (Admin) Server roles: `member-role`, `admin-role` and `mod-role` (each `add`, `remove`, `list`, `clear`), `streamer-role`. Also `feature list`/`enable`/`disable` to switch whole feature sets on and off. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
 | `/mod` | (Mod) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`. (Admin): `remove-case`, `config escalation`/`escalation-off`, `config appeal-note`/`appeal-note-clear`, `config show`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
 | `/bannedwords` | Banned words via Discord AutoMod. (Admin): `enable`, `disable`, `list add`/`remove`. (Mod): `word add`/`remove`, `status`. |
