@@ -27,12 +27,11 @@ COPY . .
 # with this ownership.
 RUN mkdir -p data logs && chown node:node data logs
 
-# Inside a container, 127.0.0.1 would make the dashboard unreachable even
-# through a published port. What's exposed is decided by the port mapping
-# instead: compose.yaml publishes it on the host's 127.0.0.1 only. The
-# dashboard stays off unless DASHBOARD_PORT is set.
-ENV DASHBOARD_HOST=0.0.0.0
-
+# DASHBOARD_HOST keeps the bot's own default of 127.0.0.1. compose.yaml uses
+# the host's network, where that is the host's loopback, as with systemd. Only
+# a container on its own network, reached through `docker run -p`, needs
+# DASHBOARD_HOST=0.0.0.0, and then -p 127.0.0.1:<port>:<port> decides who can
+# reach it.
 USER node
 
 # Commands are registered on every start, so pulling a new image is the whole
