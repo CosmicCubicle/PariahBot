@@ -15,6 +15,13 @@ something similar.
     Discord application, permissions, invite link
   - [Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation):
     `systemd` deployment and the auto-update job
+  - [Container Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Container-Installation):
+    `deploy/container-setup.sh`, the update job, image tags and pinning,
+    backups, and moving from `systemd`
+  - [AWS Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/AWS-Hosting)
+    and [Azure Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/Azure-Hosting):
+    creating the VM for either install, and why not a managed container
+    service
   - [Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard):
     turning it on, Discord sign-in, the SSH tunnel, and what it controls
   - [Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration):

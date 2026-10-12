@@ -30,7 +30,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, admin and mod (any number of each), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
-- **Admin dashboard** — an optional web page on the bot's host. Server admins sign in with Discord and change most settings for the servers they admin; the bot's owner sees every server plus the bot's status. Reach it locally, through an SSH tunnel, or publicly through a Cloudflare Tunnel. Off unless `deploy/setup.sh` (or `hom.env`) turns it on.
+- **Admin dashboard** — an optional web page on the bot's host. Server admins sign in with Discord and change most settings for the servers they admin; the bot's owner sees every server plus the bot's status. Reach it locally, through an SSH tunnel, or publicly through a Cloudflare Tunnel. Off unless a setup script (or `hom.env`) turns it on.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 
 All per-server data is stored in SQLite (`data/pariahbot.sqlite`) and scoped by
@@ -49,18 +49,23 @@ npm run deploy              # register slash commands
 npm start
 ```
 
-Deploying to a Linux host with `systemd` instead:
+To run it on a Linux server, both setup scripts ask for the token, IDs and dashboard settings, write `hom.env`, register the commands and start the bot:
 
 ```bash
-sudo ./deploy/setup.sh
+sudo ./deploy/container-setup.sh   # in Docker, from the published image ghcr.io/cosmiccubicle/pariahbot (amd64 and arm64)
+sudo ./deploy/setup.sh             # or directly, under systemd (Debian/Ubuntu)
 ```
 
-Both paths are covered in detail in the wiki:
+On AWS or Azure, run either one on a small Ubuntu VM. The wiki's hosting pages walk through creating it.
+
+All of these are covered in detail in the wiki:
 
 - **[Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)** — Discord application, permissions, invite link
 - **[Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions)** — every permission the bot needs and which feature it's for
 - **[Feature guides](https://github.com/CosmicCubicle/PariahBot/wiki#features)** — a page per feature: how it works, setup, options and troubleshooting
+- **[Container Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Container-Installation)** — Docker deployment, the optional update job, pinning a version and backups
 - **[Host Installation](https://github.com/CosmicCubicle/PariahBot/wiki/Host-Installation)** — `systemd` deployment and the optional auto-update job
+- **[AWS Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/AWS-Hosting)** and **[Azure Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/Azure-Hosting)** — the VM to create for either install, and why not the managed container services
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
 - **[Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard)** — turning it on, giving server admins access with `/setup admin-role`, and reaching it from anywhere through a Cloudflare Tunnel
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
@@ -118,7 +123,8 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `logging/` | Command audit logging. |
 | `lib/dashboard/` | The admin dashboard's web server, Discord sign-in and API. |
 | `dashboard/` | The admin dashboard's page (static HTML, CSS and JS, no build step). |
-| `deploy/` | Host setup script, including the optional admin dashboard. |
+| `deploy/` | Setup scripts for a `systemd` install (`setup.sh`) and a container install (`container-setup.sh`), sharing their questions in `configure.sh`. |
+| `Dockerfile`, `compose.yaml` | The container image and how `container-setup.sh` runs it. |
 | `test/` | Automated tests, run with `npm test`. |
 
 ## Contributing

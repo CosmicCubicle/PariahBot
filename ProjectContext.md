@@ -100,6 +100,20 @@ invoked from. See
 - **Production runs on a Linux host** set up by
   [deploy/setup.sh](deploy/setup.sh). The bot runs under `systemd`, and an
   optional sync job pulls updates from git automatically.
+- **It also ships as a container image**, `ghcr.io/cosmiccubicle/pariahbot`,
+  built from the [Dockerfile](Dockerfile) and published on every push to
+  `main`. [deploy/container-setup.sh](deploy/container-setup.sh) installs it
+  with Compose. Configuration comes in from `hom.env`, the database and logs
+  live on volumes, and slash commands are registered on every start. It uses
+  the host's network, so the dashboard listens on the host's loopback exactly
+  as with systemd. Its live database is just as real as the systemd host's.
+- **On AWS and Azure, the bot runs on a small VM** (EC2, Azure VM), with either
+  install, not on a managed container service. The database is SQLite in WAL
+  mode, which doesn't work on the network filesystems (EFS, Azure Files) that
+  Fargate, Container Apps and similar services offer for persistent storage.
+  Those services also make it easy to run two copies at once, and two copies
+  under one token both act on everything. The wiki's AWS Hosting and Azure
+  Hosting pages say this to self-hosters too.
 - **The live database already exists and has real data.** A schema change
   that only works on a fresh install will break production. Migrations have
   to be guarded and run only once (see CodeStandards.md § 6).
