@@ -3,7 +3,7 @@
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
 auto-deletion, anti-spam, banned words, moderation, giveaways, activity levels, Twitch and YouTube
-alerts, Instagram post alerts, RSS feeds, and admin alerting. Built
+alerts, Instagram post alerts, RSS feeds, a server log, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
 
@@ -50,7 +50,7 @@ npm run deploy              # register slash commands
 npm start
 ```
 
-To run it on a Linux server, both setup scripts ask for the token, IDs and dashboard settings, write `hom.env`, register the commands and start the bot:
+To run it on a Linux server, both setup scripts ask for the token, IDs, dashboard settings and whether the server log shows message text, write `hom.env`, register the commands and start the bot:
 
 ```bash
 sudo ./deploy/container-setup.sh   # in Docker, from the published image ghcr.io/cosmiccubicle/pariahbot (amd64 and arm64)
