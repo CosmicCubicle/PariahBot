@@ -55,7 +55,14 @@ Deploying to a Linux host with `systemd` instead:
 sudo ./deploy/setup.sh
 ```
 
-Both paths are covered in detail in the wiki:
+Or in a container, with Docker Compose (the image is `ghcr.io/cosmiccubicle/pariahbot`, for amd64 and arm64):
+
+```bash
+cp .env.example hom.env     # fill it in as above; only compose.yaml and hom.env are needed
+docker compose up -d        # registers slash commands on every start
+```
+
+All of these are covered in detail in the wiki:
 
 - **[Bot Setup](https://github.com/CosmicCubicle/PariahBot/wiki/Bot-Setup)** — Discord application, permissions, invite link
 - **[Permissions](https://github.com/CosmicCubicle/PariahBot/wiki/Permissions)** — every permission the bot needs and which feature it's for
@@ -119,6 +126,7 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | `lib/dashboard/` | The admin dashboard's web server, Discord sign-in and API. |
 | `dashboard/` | The admin dashboard's page (static HTML, CSS and JS, no build step). |
 | `deploy/` | Host setup script, including the optional admin dashboard. |
+| `Dockerfile`, `compose.yaml` | The container image and how to run it. |
 | `test/` | Automated tests, run with `npm test`. |
 
 ## Contributing

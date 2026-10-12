@@ -1,0 +1,30 @@
+# Runs the published PariahBot image with Docker Compose:
+#   cp .env.example hom.env    then fill it in
+#   docker compose up -d
+# Update with `docker compose pull && docker compose up -d`. Slash commands
+# are re-registered on every start (see the Dockerfile).
+services:
+  pariahbot:
+    image: ghcr.io/cosmiccubicle/pariahbot:latest
+    restart: unless-stopped
+    env_file: hom.env
+    environment:
+      # Overrides hom.env, where .env.example leaves it blank: blank means
+      # 127.0.0.1, which a published port can't reach (see the Dockerfile).
+      DASHBOARD_HOST: 0.0.0.0
+    volumes:
+      # Named volumes, not ./data: a directory Docker creates on the host is
+      # owned by root, and the bot runs as the image's unprivileged user.
+      - pariahbot-data:/app/data
+      - pariahbot-logs:/app/logs
+    ports:
+      # Only used if DASHBOARD_PORT is set, and both sides must match it: the
+      # dashboard only answers to localhost:<DASHBOARD_PORT> or
+      # DASHBOARD_PUBLIC_URL. Published on the host's 127.0.0.1 only, the same
+      # exposure as a systemd install; reach it through an SSH or Cloudflare
+      # Tunnel.
+      - 127.0.0.1:8080:8080
+
+volumes:
+  pariahbot-data:
+  pariahbot-logs:

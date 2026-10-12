@@ -100,6 +100,11 @@ invoked from. See
 - **Production runs on a Linux host** set up by
   [deploy/setup.sh](deploy/setup.sh). The bot runs under `systemd`, and an
   optional sync job pulls updates from git automatically.
+- **It also ships as a container image**, `ghcr.io/cosmiccubicle/pariahbot`,
+  built from the [Dockerfile](Dockerfile) and published on every push to
+  `main`. Configuration comes in as environment variables, the database and
+  logs live on volumes, and slash commands are registered on every start.
+  Its live database is just as real as the systemd host's.
 - **The live database already exists and has real data.** A schema change
   that only works on a fresh install will break production. Migrations have
   to be guarded and run only once (see CodeStandards.md § 6).

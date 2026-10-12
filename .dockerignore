@@ -1,0 +1,18 @@
+# Secrets and live data must never be baked into a published image
+# (WorkingAgreements.md § 5): configuration comes in as environment variables,
+# and data/ and logs/ are volumes.
+hom.env
+.env
+data/
+logs/
+sync.log
+npm-debug.log*
+
+# Installed fresh inside the image.
+node_modules/
+
+# Not needed to run the bot.
+.git/
+.github/
+test/
+deploy/
