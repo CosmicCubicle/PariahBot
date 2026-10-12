@@ -441,6 +441,14 @@ PR which checks you couldn't run and why.
 - Keep each commit to one logical change. Fold a fix found during review into
   the PR as its own commit with its own explanation.
 - AI-assisted commits keep their `Co-Authored-By:` trailer.
+- **Releases** are tagged `vX.Y.Z`:
+  1. Bump the version in the PR that ships them, with
+     `npm version X.Y.Z --no-git-tag-version`, which updates `package.json`
+     and the lockfile together.
+  2. After it merges, run `gh release create vX.Y.Z --target main`.
+
+  The tag publishes the container image as `:X.Y.Z` and `:X.Y` (see
+  `.github/workflows/container.yml`). `latest` already follows `main`.
 - Never commit `hom.env`, `data/`, `logs/` or `sync.log` (they're already in
   `.gitignore`).
 

@@ -1,14 +1,16 @@
 name: Container image
 
 # Builds the Dockerfile on every PR, and publishes it to
-# ghcr.io/cosmiccubicle/pariahbot from main. The two are separate jobs so the
-# one that runs a PR's code never holds a token that can write packages (see
-# the note in tests.yml).
+# ghcr.io/cosmiccubicle/pariahbot from main and from release tags (v1.1.0 and
+# so on, pushed by `gh release create`). The two are separate jobs so the one
+# that runs a PR's code never holds a token that can write packages (see the
+# note in tests.yml).
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -53,13 +55,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # latest follows main; sha-<commit> tags let a host pin or roll back.
+      # latest follows main, like the systemd sync job; a release tag v1.2.3
+      # publishes 1.2.3 and 1.2, for hosts that would rather move only on
+      # releases; sha-<commit> tags let a host pin any build or roll back.
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/cosmiccubicle/pariahbot
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha
 
       - uses: docker/build-push-action@v6
