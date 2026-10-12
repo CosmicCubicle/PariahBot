@@ -110,9 +110,10 @@ ask_yes_no() {
 }
 
 # Create CONFIG_FILE from the template on first run, then ask for the Discord
-# credentials and the optional dashboard settings. Enter keeps each current
-# value, so rerunning is safe. Leaves TOKEN, DASHBOARD_PORT_VALUE and
-# DASHBOARD_PUBLIC_URL_VALUE set for the caller.
+# credentials, the optional dashboard settings and whether the server log
+# shows message text. Enter keeps each current value, so rerunning is safe.
+# Leaves TOKEN, DASHBOARD_PORT_VALUE and DASHBOARD_PUBLIC_URL_VALUE set for
+# the caller.
 configure_bot_env() {
 	local template=$1
 	if [ ! -f "$CONFIG_FILE" ]; then
@@ -169,12 +170,31 @@ configure_bot_env() {
 		done
 	fi
 
+	# Optional: the text of edited and deleted messages in the server log
+	# (SERVER_LOG_MESSAGE_CONTENT, see lib/intents.js). It makes the bot ask for
+	# the privileged Message Content intent, so the switch has to be on in the
+	# Developer Portal first, or Discord refuses the login. Enter keeps the
+	# current answer.
+	local message_text reply
+	message_text=$(get_value SERVER_LOG_MESSAGE_CONTENT)
+	if [[ "${message_text,,}" =~ ^(1|true|yes|on)$ ]]; then
+		read -r -p 'The server log includes the text of edited and deleted messages. Keep that? [Y/n]: ' reply
+		if [[ "$reply" =~ ^[Nn]([Oo])?$ ]]; then message_text=''; else message_text=true; fi
+	else
+		printf '\nThe server log (/logging) can include the text of edited and deleted\n'
+		printf 'messages. That needs "Message Content Intent" switched on in the Developer\n'
+		printf 'Portal (your application -> Bot -> Privileged Gateway Intents) before the\n'
+		printf 'bot restarts, or Discord refuses its login.\n'
+		if ask_yes_no 'Log the text of edited and deleted messages?'; then message_text=true; else message_text=''; fi
+	fi
+
 	set_value DISCORD_TOKEN "$TOKEN"
 	set_value CLIENT_ID "$client_id"
 	set_value GUILD_ID "$guild_id"
 	set_value DASHBOARD_PORT "$DASHBOARD_PORT_VALUE"
 	set_value DISCORD_CLIENT_SECRET "$client_secret"
 	set_value DASHBOARD_PUBLIC_URL "$DASHBOARD_PUBLIC_URL_VALUE"
+	set_value SERVER_LOG_MESSAGE_CONTENT "$message_text"
 
 	# Keep credentials readable only by the bot user.
 	chown "$BOT_USER:$BOT_USER" "$CONFIG_FILE"
