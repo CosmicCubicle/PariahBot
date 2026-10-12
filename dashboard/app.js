@@ -238,6 +238,7 @@ const TABS = [
 	['alerts', 'Stream, Instagram & RSS', ['streamers', 'instagram', 'rss']],
 	['autoDelete', 'Auto-delete', ['autoDelete']],
 	['moderation', 'Moderation', ['moderation']],
+	['logging', 'Logging', ['logging']],
 	['voice', 'Voice', ['tempVoice']],
 	['other', 'Giveaways & more', ['giveaways', 'captcha', 'honeypot', 'leveling']],
 ];
@@ -276,7 +277,7 @@ function renderGuild() {
 		class: state.tab === key ? 'active' : '', type: 'button', role: 'tab',
 		onclick: () => { state.tab = key; renderGuild(); },
 	}, label)));
-	const sections = { general: generalTab, features: featuresTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, voice: voiceTab, other: otherTab };
+	const sections = { general: generalTab, features: featuresTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, logging: loggingTab, voice: voiceTab, other: otherTab };
 	$('main').replaceChildren(
 		h('h1', {}, guild.name),
 		h('p', { class: 'muted' }, `${guild.memberCount} members · ID ${guild.id}`),
@@ -295,6 +296,7 @@ function permissionWarnings() {
 		[!p.manageChannels, 'Manage Channels', 'voice channels and setup'],
 		[!p.manageRoles, 'Manage Roles', 'role menus, verification and channel permissions'],
 		[!p.manageMessages, 'Manage Messages', 'auto-delete'],
+		[!p.viewAuditLog, 'View Audit Log', 'the server log’s kicks, bans and server changes'],
 	].filter(([isMissing]) => isMissing);
 	if (!missing.length) return null;
 	return h('div', { class: 'warning' },
@@ -516,6 +518,35 @@ function moderationTab() {
 				h('td', {}, c.reason ?? '—'),
 				h('td', {}, btn('Remove', 'danger', confirmThen(`Remove case #${c.id}? The action itself isn't undone.`, (e) => act('moderation.removeCase', { caseId: c.id }, e.target)))))), 'No cases yet.')),
 	);
+}
+
+// The server log (#81): one card per section, each with its own switch and
+// channel. What stops a section working is shown on its card, worded as the
+// fix, rather than leaving a switch that looks on and logs nothing.
+function logSectionCard(section) {
+	const channel = channelSelect(section.channelId, section.channelId ? null : 'Pick a channel');
+	const live = section.enabled && section.channelId;
+	return card(section.label, section.description,
+		h('p', {}, pill(live), ' ', section.channelId ? (section.enabled ? `Posting to ${channelName(section.channelId)}` : `Channel kept: ${channelName(section.channelId)}`) : 'No channel yet'),
+		section.problems.length ? h('div', { class: 'warning' }, section.problems.map((problem) => h('div', {}, problem.replace(/\*\*/g, '')))) : null,
+		section.note ? h('p', { class: 'muted' }, section.note) : null,
+		h('div', { class: 'row' }, field('Channel', channel),
+			btn(section.channelId ? 'Change channel' : 'Save and switch on', 'primary', (e) => {
+				if (!channel.value) {
+					toast('Pick a channel first.', true);
+					return;
+				}
+				act('logging.setSection', { section: section.key, channelId: channel.value }, e.target);
+			}),
+			section.channelId
+				? (section.enabled
+					? btn('Switch off', 'danger', (e) => act('logging.setSection', { section: section.key, enabled: false }, e.target))
+					: btn('Switch on', 'secondary', (e) => act('logging.setSection', { section: section.key, enabled: true }, e.target)))
+				: null));
+}
+
+function loggingTab() {
+	return h('div', {}, state.guild.logging.sections.map(logSectionCard));
 }
 
 function categorySelect(selectedId, noneLabel) {

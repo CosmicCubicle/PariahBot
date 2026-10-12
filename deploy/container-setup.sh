@@ -118,4 +118,5 @@ fi
 docker compose up -d
 printf '\nPariahBot is running in the "pariahbot" container. Configuration is in %s.\n' "$CONFIG_FILE"
 printf 'Logs: sudo docker logs -f pariahbot\n'
+print_intent_steps
 print_dashboard_steps

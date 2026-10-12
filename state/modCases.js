@@ -73,6 +73,20 @@ function getCase(guildId, caseId) {
 	return mapCase(selectCaseStmt.get(caseId, guildId));
 }
 
+const selectLatestCaseStmt = db.prepare(`
+	SELECT * FROM mod_cases
+	WHERE guild_id = ? AND user_id = ? AND created_at >= ?
+	ORDER BY id DESC LIMIT 1
+`);
+
+// The case behind a ban or kick the bot itself just carried out, so the server
+// log can name it (lib/serverLog.js). Matched on the member and a short
+// window, and only accepted if the action fits.
+function findRecentCase(guildId, userId, actions, sinceIso) {
+	const entry = mapCase(selectLatestCaseStmt.get(guildId, userId, sinceIso));
+	return entry && actions.includes(entry.action) ? entry : null;
+}
+
 const deleteCaseStmt = db.prepare('DELETE FROM mod_cases WHERE id = ? AND guild_id = ?');
 
 function removeCase(guildId, caseId) {
@@ -86,5 +100,6 @@ module.exports = {
 	countCasesByAction,
 	countWarningsSince,
 	getCase,
+	findRecentCase,
 	removeCase,
 };

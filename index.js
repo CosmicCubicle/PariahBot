@@ -1,20 +1,23 @@
 require('dotenv').config({ path: 'hom.env' });
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, Events, GatewayCloseCodes, Partials } = require('discord.js');
+const { gatewayIntents, messageContentEnabled, disallowedIntentsHelp } = require('./lib/intents');
+const serverLog = require('./lib/serverLog');
 
-// GuildMessages is non-privileged and needed for /autodelete: receiving
-// messageCreate events and fetching channel history to seed tracking.
-// AutoModerationExecution is non-privileged and needed for /bannedwords:
-// Discord's AutoMod does the blocking, and this event is how the bot hears
-// about each block to report it (see lib/bannedWords.js).
+// What each intent is for is listed in lib/intents.js.
 const client = new Client({
-	intents: [
-		GatewayIntentBits.Guilds,
-		GatewayIntentBits.GuildVoiceStates,
-		GatewayIntentBits.GuildMessages,
-		GatewayIntentBits.AutoModerationExecution,
-	],
+	intents: gatewayIntents(),
+	// Without these, discord.js drops the event unless the member or message
+	// happens to be cached: a member who left without the bot having seen them
+	// since it started, or the edit or deletion of an older message, would never
+	// reach the server log. Handlers that get one check .partial.
+	partials: [Partials.GuildMember, Partials.Message],
+	// Only with message text switched on (SERVER_LOG_MESSAGE_CONTENT): the cache
+	// discord.js already keeps of recent messages is what lets the server log show
+	// a deleted message's text, or an edit's "before". Bounded by age, and emptied
+	// of servers not logging messages. See WorkingAgreements.md § 1.
+	...(messageContentEnabled() ? { sweepers: serverLog.messageCacheSweepers() } : {}),
 });
 
 client.commands = new Collection();
@@ -38,5 +41,14 @@ for (const file of eventFiles) {
 		client.on(event.name, (...args) => event.execute(...args, client));
 	}
 }
+
+// Discord refusing a privileged intent the Developer Portal hasn't allowed
+// otherwise shows up only as a disconnect, with the bot sitting there offline.
+// Say what to change, and exit, so systemd or Docker reports it as failed.
+client.on(Events.ShardDisconnect, (event) => {
+	if (event.code !== GatewayCloseCodes.DisallowedIntents) return;
+	console.error(disallowedIntentsHelp());
+	process.exit(1);
+});
 
 client.login(process.env.DISCORD_TOKEN);
