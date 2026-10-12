@@ -35,7 +35,7 @@ function loadApp() {
 function withFeaturesOff(app, ...offKeys) {
 	const keys = [
 		'tempVoice', 'roleMenus', 'autoDelete', 'captcha', 'honeypot', 'leveling',
-		'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram',
+		'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'logging',
 	];
 	app.state.guild = {
 		features: keys.map((key) => ({ key, label: key, commands: [], enabled: !offKeys.includes(key), isDefault: false })),
@@ -45,7 +45,7 @@ function withFeaturesOff(app, ...offKeys) {
 test('General and Features are always shown, even with everything off', () => {
 	const app = loadApp();
 	withFeaturesOff(app, 'tempVoice', 'roleMenus', 'autoDelete', 'captcha', 'honeypot',
-		'leveling', 'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram');
+		'leveling', 'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'logging');
 
 	const keys = app.visibleTabs().map(([key]) => key);
 	// Features has to survive switching everything off, or there would be no way
@@ -58,16 +58,17 @@ test('all tabs are shown when nothing is switched off', () => {
 	withFeaturesOff(app);
 
 	const keys = app.visibleTabs().map(([key]) => key);
-	assert.deepEqual(keys, ['general', 'features', 'bannedWords', 'alerts', 'autoDelete', 'moderation', 'voice', 'other']);
+	assert.deepEqual(keys, ['general', 'features', 'bannedWords', 'alerts', 'autoDelete', 'moderation', 'logging', 'voice', 'other']);
 });
 
 test("a single feature's tab disappears with it", () => {
 	const app = loadApp();
-	withFeaturesOff(app, 'moderation', 'tempVoice');
+	withFeaturesOff(app, 'moderation', 'tempVoice', 'logging');
 
 	const keys = app.visibleTabs().map(([key]) => key);
 	assert.ok(!keys.includes('moderation'));
 	assert.ok(!keys.includes('voice'));
+	assert.ok(!keys.includes('logging'));
 	assert.ok(keys.includes('autoDelete'), 'unrelated tabs stay');
 });
 

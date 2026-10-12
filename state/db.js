@@ -300,6 +300,19 @@ db.exec(`
 		PRIMARY KEY (guild_id, feature)
 	);
 
+	-- Server log sections (#81): one row per section an admin has touched.
+	-- section is a key from SECTIONS in lib/serverLog.js, stored, so treat
+	-- those keys as permanent. A missing row means off with no channel. enabled
+	-- is kept apart from channel_id on purpose: switching a section off keeps
+	-- its channel, so switching it back on needs nothing re-picked.
+	CREATE TABLE IF NOT EXISTS guild_log_sections (
+		guild_id   TEXT NOT NULL,
+		section    TEXT NOT NULL,
+		enabled    INTEGER NOT NULL DEFAULT 0,
+		channel_id TEXT,
+		PRIMARY KEY (guild_id, section)
+	);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id     TEXT NOT NULL,

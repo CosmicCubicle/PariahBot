@@ -181,6 +181,25 @@ configure_bot_env() {
 	chmod 600 "$CONFIG_FILE"
 }
 
+# The bot asks Discord for the privileged Server Members intent (and Message
+# Content when SERVER_LOG_MESSAGE_CONTENT is on), and Discord refuses the
+# login until the Developer Portal allows it — see lib/intents.js. A script
+# can't switch it on, so it says so on every run.
+print_intent_steps() {
+	local message_content
+	message_content=$(get_value SERVER_LOG_MESSAGE_CONTENT)
+	cat <<EOF
+
+Required once, in the Discord Developer Portal: your application -> Bot ->
+Privileged Gateway Intents, switch on "Server Members Intent" and Save Changes.
+Without it Discord refuses the bot's login, and the log says so.
+EOF
+	# Lowercased, to accept what lib/intents.js accepts (TRUE, Yes, …).
+	if [[ "${message_content,,}" =~ ^(1|true|yes|on)$ ]]; then
+		printf 'SERVER_LOG_MESSAGE_CONTENT is on, so also switch on "Message Content Intent".\n'
+	fi
+}
+
 # The steps left to do by hand once the dashboard is on: register the redirect
 # URL, then reach it through an SSH or Cloudflare Tunnel.
 print_dashboard_steps() {

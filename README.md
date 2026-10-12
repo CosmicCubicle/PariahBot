@@ -30,6 +30,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, admin and mod (any number of each), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, with an auto-provisioned default channel per server.
+- **Server log** — what happens in the server, posted to channels the admins choose, in four sections that each switch on and off by themselves: **kicks and bans** (by anyone; the bot's own name their case), **joins and leaves**, **messages** (edits and deletes) and **server changes** (roles, channels, permissions and members' roles). Set up with `/logging` or the dashboard's Logging tab. Needs the bot to have View Audit Log, and the **Server Members Intent** switched on in the Developer Portal. The text of edited and deleted messages is an opt-in for the host (`SERVER_LOG_MESSAGE_CONTENT`), which also needs the Message Content Intent.
 - **Admin dashboard** — an optional web page on the bot's host. Server admins sign in with Discord and change most settings for the servers they admin; the bot's owner sees every server plus the bot's status. Reach it locally, through an SSH tunnel, or publicly through a Cloudflare Tunnel. Off unless a setup script (or `hom.env`) turns it on.
 - **Command audit log** — human-readable log at `logs/commands.log`, optionally mirrored to Discord channels.
 
@@ -68,15 +69,18 @@ All of these are covered in detail in the wiki:
 - **[AWS Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/AWS-Hosting)** and **[Azure Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/Azure-Hosting)** — the VM to create for either install, and why not the managed container services
 - **[Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration)** — every `hom.env` variable
 - **[Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard)** — turning it on, giving server admins access with `/setup admin-role`, and reaching it from anywhere through a Cloudflare Tunnel
+- **[Server Log](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Log)** — the four log sections, the intents and permission they need, and the opt-in for message text
 - **[Server Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Configuration)** — configuring the bot inside Discord, in a working order
 - **[Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words)** — the lists, custom words, exemptions and reporting
 - **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
 - **[Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts)** — the Meta app, System User token and setup
 - **[Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)** — when something silently does nothing
 
-> ⚠️ **Two things that trip up most setups:** the bot's role must sit **above**
-> any role it hands out, and `GUILD_ID` in `hom.env` restricts commands to a
-> single server — leave it empty to register globally.
+> ⚠️ **Three things that trip up most setups:** the bot's role must sit **above**
+> any role it hands out; `GUILD_ID` in `hom.env` restricts commands to a
+> single server, so leave it empty to register globally; and the bot won't
+> connect until **Server Members Intent** is switched on in the Developer Portal
+> (your application → Bot → Privileged Gateway Intents).
 
 ## Commands
 
@@ -100,6 +104,7 @@ Manage Channels alone is neither.
 | `/mod` | (Mod) Moderation: `warn`, `kick`, `ban` (optionally temporary), `softban`, `unban`, `timeout`, `untimeout`, `history`. (Admin): `remove-case`, `config escalation`/`escalation-off`, `config appeal-note`/`appeal-note-clear`, `config show`. Also **Kick member**, **Ban member** and **Timeout member** when you right-click a member → Apps. |
 | `/bannedwords` | Banned words via Discord AutoMod. (Admin): `enable`, `disable`, `list add`/`remove`. (Mod): `word add`/`remove`, `status`. |
 | `/autodelete` | (Mod) Per-channel message auto-deletion: `set`, `disable`, `status`. |
+| `/logging` | (Admin) The server log, by section (kicks and bans, joins and leaves, messages, server changes): `set` a section's channel, `enable`, `disable`, `status`. |
 | `/alerts` | (Mod) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
@@ -117,7 +122,7 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | Path | Contents |
 | --- | --- |
 | `commands/` | One module per slash command; loaded automatically at startup. |
-| `events/` | Discord gateway event handlers (interactions, messages, voice state, ready). |
+| `events/` | Discord gateway event handlers (interactions, messages, voice state, members, audit log, ready). |
 | `lib/` | Feature logic shared between commands and events. |
 | `state/` | SQLite access — `db.js` owns the schema, one module per domain. |
 | `logging/` | Command audit logging. |

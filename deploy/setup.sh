@@ -133,5 +133,6 @@ fi
 sudo -u "$BOT_USER" HOME="$BOT_HOME" bash -lc 'cd /opt/PariahBot && . "$HOME/.nvm/nvm.sh" && nvm use 24 >/dev/null && node deploy-commands.js'
 systemctl restart pariahbot.service
 printf 'PariahBot setup complete. Configuration is in %s.\n' "$CONFIG_FILE"
+print_intent_steps
 
 print_dashboard_steps
