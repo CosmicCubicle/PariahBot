@@ -4,6 +4,21 @@
 # Debian slim rather than Alpine: better-sqlite3 is pinned to a release with
 # prebuilt glibc binaries (see state/db.js), so `npm ci` needs no compiler
 # here either, matching deploy/setup.sh.
+
+# Dependencies are installed on the build machine's own architecture, asking
+# prebuild-install for the target's better-sqlite3 binary (npm_config_arch;
+# Docker's amd64 is Node's x64). Under arm64 emulation in CI, the download
+# failed transiently, and with no compiler there's no fallback (#79).
+# better-sqlite3 is the only native dependency, so this node_modules runs on
+# either architecture.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS deps
+ARG TARGETARCH
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm_config_arch=$([ "$TARGETARCH" = amd64 ] && echo x64 || echo "$TARGETARCH") \
+	npm ci --omit=dev \
+	&& npm cache clean --force
+
 FROM node:24-bookworm-slim
 
 # tini runs as PID 1 and passes `docker stop`'s SIGTERM on to node. Node as
@@ -17,9 +32,7 @@ RUN apt-get update \
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # The code stays root-owned and read-only to the bot; only the database and
