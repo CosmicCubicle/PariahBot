@@ -22,6 +22,9 @@ something similar.
     and [Azure Hosting](https://github.com/CosmicCubicle/PariahBot/wiki/Azure-Hosting):
     creating the VM for either install, and why not a managed container
     service
+  - [Server Log](https://github.com/CosmicCubicle/PariahBot/wiki/Server-Log):
+    the four sections, the intents and View Audit Log they need, and the
+    message text opt-in
   - [Admin Dashboard](https://github.com/CosmicCubicle/PariahBot/wiki/Admin-Dashboard):
     turning it on, Discord sign-in, the SSH tunnel, and what it controls
   - [Configuration](https://github.com/CosmicCubicle/PariahBot/wiki/Configuration):

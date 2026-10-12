@@ -24,6 +24,7 @@ several single-purpose bots with one:
 - Instagram post alerts
 - RSS and Atom feeds
 - admin alerts
+- a server log (kicks and bans, joins and leaves, messages, server changes)
 
 Slash commands are loaded automatically from `commands/`.
 
@@ -156,16 +157,36 @@ The default "remove" is a **softban**: ban, then immediately unban.
 `deleteMessageSeconds` is what actually cleans up the messages, and the
 unban lets a real person rejoin.
 
-## 5. No privileged gateway intents
+## 5. Privileged gateway intents: one, by necessity
 
-The bot uses only Discord's non-privileged intents (`Guilds`,
-`GuildVoiceStates`, `GuildMessages`, `AutoModerationExecution`).
+Privileged intents have to be switched on in the Developer Portal by every
+self-hoster, so the bot avoids them, and features are designed around that.
+For a long time it used none. It now asks for **one, Guild Members**, because
+one feature has no other source. The intents and what each is for are listed
+in [lib/intents.js](lib/intents.js).
 
-**Why it matters:** privileged intents need extra approval in the Discord
-developer portal, which every self-hoster would have to repeat. Features
-are designed around this limit. For example, the captcha uses a persistent
-"Start verification" button rather than listening for members joining,
-which would need the privileged Guild Members intent.
+**Guild Members, always (#81).** The server log's joins and leaves can only
+come from `guildMemberAdd`/`guildMemberRemove`. Kicks and bans are in the
+audit log, but someone joining, or leaving on their own, is in nothing a
+non-privileged bot can see. It was decided to request it always rather than as
+an opt-in. The cost:
+- **Every install must switch on Server Members Intent** (your application →
+  Bot → Privileged Gateway Intents), or Discord refuses the login with close
+  code 4014. `index.js` catches that, prints which switch to turn on, and exits
+  so systemd or Docker reports the failure. The setup scripts, the release
+  notes and the wiki's Bot Setup page all say so.
+- **Discord reviews the intent for bots in 100 or more servers.** Self-hosted
+  instances rarely get there.
+
+**Message Content, only as the host's opt-in (#81).** `SERVER_LOG_MESSAGE_CONTENT`
+adds the text of edited and deleted messages to the server log. Off, the bot
+still never reads what members write, and everything below holds.
+
+**What hasn't changed:** features are still built to avoid privileged intents
+where they can. The captcha keeps its persistent "Start verification" button
+rather than switching to `guildMemberAdd`. It predates the intent, works
+without it, and a feature shouldn't stop working for a host who turns the
+intent off.
 
 Banned words are the biggest case. Reading message text needs the privileged
 Message Content intent, so the bot never sees what members write. Instead it
@@ -209,8 +230,9 @@ connection directly.
     session.
 
   It's rechecked on every request, with the member fetched fresh from
-  Discord. Without the privileged Guild Members intent, cached roles can
-  be stale.
+  Discord. The member cache only holds members the bot has seen since it
+  started, and a cached member's roles can be stale, so they're never
+  trusted for access.
 - **Sessions are signed cookies, not stored state,** so they need no
   exception to WorkingAgreements.md § 1. The key is derived from
   `DISCORD_CLIENT_SECRET`, so rotating that secret signs everyone out.

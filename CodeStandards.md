@@ -157,11 +157,20 @@ Use [commands/autodelete.js](commands/autodelete.js) as the reference.
   - Remember that a button can be clicked from a DM (alerts are DMed), where
     there is no `guild` or `member`. Resolve both by hand and **fail closed**
     if the clicker has left the server (see `lib/hubDesync.js`).
-- **Gateway intents:** only non-privileged intents are used today. Building a
-  feature differently to avoid a privileged intent is preferred; the captcha
-  uses a persistent button instead of `guildMemberAdd`, and banned words use
-  Discord AutoMod instead of reading message text, for this reason.
-  Adding an intent needs a comment in `index.js` explaining what needs it.
+- **Gateway intents** are chosen in [lib/intents.js](lib/intents.js), each with
+  a comment saying what needs it. Add a new one there.
+  - **Avoid privileged intents where you can.** The captcha uses a persistent
+    button rather than `guildMemberAdd`, and banned words use Discord AutoMod
+    rather than reading message text, for this reason.
+  - **One privileged intent is always requested:** Guild Members, for the
+    server log's joins and leaves (ProjectContext.md § 5). Message Content is
+    the host's opt-in only.
+  - **Another privileged intent** is a breaking change for every install, so it
+    needs the same treatment as Guild Members: a decision recorded in
+    ProjectContext.md § 5, the setup scripts saying so, and a clear startup
+    error.
+  - **Don't make a feature need Guild Members just because it's available.** A
+    host can still switch it off and expect everything else to work.
 
 ## 6. State and the database
 
@@ -377,10 +386,11 @@ depends on what you touched:
 
 | Working on | Also needs |
 | --- | --- |
-| Anything | `DISCORD_TOKEN`, `CLIENT_ID`, and `GUILD_ID` for instant command registration |
+| Anything | `DISCORD_TOKEN`, `CLIENT_ID`, and `GUILD_ID` for instant command registration. The test application needs **Server Members Intent** switched on, or the bot can't connect |
 | Streamer alerts | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `YOUTUBE_API_KEY` |
 | Instagram alerts | `INSTAGRAM_ACCESS_TOKEN`, `INSTAGRAM_BUSINESS_ACCOUNT_ID` |
 | The dashboard | `DASHBOARD_PORT`, `DASHBOARD_HOST`, `DASHBOARD_PUBLIC_URL`, `DISCORD_CLIENT_SECRET` |
+| The server log | `SERVER_LOG_MESSAGE_CONTENT` for message text, with Message Content Intent switched on for the test application. View Audit Log for the bot in the test server |
 
 Alert and dashboard work therefore can't be verified without third-party
 credentials. Budget for obtaining them before starting, or say plainly in the

@@ -38,11 +38,12 @@ side files drift from the database.
 
 ### Recorded in-memory exceptions
 
-Three things are deliberately kept in memory, each for its own reason:
+Four things are deliberately kept in memory, each for its own reason:
 
 - the auto-delete message cache
 - the Twitch access token
 - pending captcha answers
+- recent messages, for the server log's message text
 
 They are the only exceptions. Any new one has to be added here, with its
 reasoning, before it's merged.
@@ -93,6 +94,27 @@ answer in a module-level `Map` (`pendingChallenges`), for up to 5 minutes.
 **How to apply:** this covers per-interaction secrets that expire within
 minutes, where losing them on a restart costs one click. It doesn't cover
 anything a member or admin would expect to survive a restart.
+
+### Recent messages, for the server log's message text
+
+Only when the host sets `SERVER_LOG_MESSAGE_CONTENT` (#81). The text of an
+edit's "before", or of a deleted message, comes from discord.js's own cache of
+recent messages: by the time Discord says a message was edited or deleted, the
+old text is gone from Discord. [index.js](index.js) bounds that cache with
+`messageCacheSweepers()` from [lib/serverLog.js](lib/serverLog.js).
+
+**Why:**
+- **Discord owns the data,** and the cache is rebuilt as messages arrive. It's
+  the same reasoning as the auto-delete cache.
+- **Losing it on a restart only means less detail.** An older message's edit or
+  deletion is still logged, without its text.
+- **Storing it would be worse.** A table of members' messages would outlive the
+  messages themselves, for every server, for no gain.
+
+**How to apply:** keep it bounded. Messages older than a day are swept, and so
+is every message from a server whose Messages section is off, so the bot holds
+members' words only where a server asked for them. Without the opt-in, none of
+this applies: the bot never receives the text at all.
 
 ## 2. Stay scoped to the invoking guild
 
