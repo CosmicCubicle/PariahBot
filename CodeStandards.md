@@ -65,7 +65,7 @@ There is no linter or formatter config, so match the existing style by hand:
 | `logging/` | Command audit log | |
 | `lib/dashboard/` | The admin dashboard's server, sign-in and JSON API | Reuses `state/` and `lib/`. Validation shared with a command lives in `lib/`, not in either. Every ID from the page is checked against its server. |
 | `dashboard/` | The dashboard page | Static files only. Build the DOM with `textContent` (the page's `h()`), never `innerHTML`. |
-| `deploy/` | Host setup (`setup.sh`) | Idempotent. Safe to re-run. |
+| `deploy/` | Host setup: `setup.sh` (systemd) and `container-setup.sh` (Docker), with the `hom.env` questions both ask in `configure.sh` | Idempotent. Safe to re-run. A new `hom.env` question goes in `configure.sh`, so both installs ask it. Plain bash, no Node: a container host has none. Neither may start a second copy of a bot the other install is already running. |
 | `Dockerfile`, `compose.yaml` | The container image, published from `main` by `.github/workflows/container.yml` | No secrets or data in the image (`.dockerignore`). A new writable path needs a volume and the bot user's ownership. |
 | `test/` | The `node:test` suite | One `<area>.test.js` per area, shared fakes in `test/helpers/`. No token, network or real database (see §13). |
 
