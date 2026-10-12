@@ -31,6 +31,13 @@ set_value() {
 	mv "$tmp" "$CONFIG_FILE"
 }
 
+# Print USER's crontab without the lines containing TEXT. grep -v exits 1 when
+# no line is left (a crontab holding only that job), and under pipefail that
+# ended setup.sh before it restarted the bot.
+crontab_without() {
+	{ crontab -u "$1" -l 2>/dev/null || true; } | { grep -vF "$2" || true; }
+}
+
 ask_required() {
 	local prompt=$1 default=${2:-} value
 	while :; do

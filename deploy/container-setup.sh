@@ -61,7 +61,7 @@ if [ -f "$SYSTEMD_DIR/hom.env" ] && [ "$(get_value DISCORD_TOKEN "$SYSTEMD_DIR/h
 	SERVICE_USER=$(awk -F= '$1 == "User" { print $2 }' /etc/systemd/system/pariahbot.service 2>/dev/null || true)
 	rm -f /usr/local/sbin/pariahbot-sync /etc/sudoers.d/pariahbot-sync
 	if [ -n "$SERVICE_USER" ] && crontab -u "$SERVICE_USER" -l >/dev/null 2>&1; then
-		crontab -u "$SERVICE_USER" -l | grep -vF /usr/local/sbin/pariahbot-sync | crontab -u "$SERVICE_USER" -
+		crontab_without "$SERVICE_USER" /usr/local/sbin/pariahbot-sync | crontab -u "$SERVICE_USER" -
 	fi
 	REPLACING_SYSTEMD=yes
 fi

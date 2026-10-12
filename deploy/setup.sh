@@ -120,10 +120,13 @@ EOF
 $BOT_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart pariahbot.service
 EOF
 	chmod 440 /etc/sudoers.d/pariahbot-sync
-	current=$(crontab -u "$BOT_USER" -l 2>/dev/null || true)
-	printf '%s\n' "$current" | grep -vF "$SYNC_FILE" | { cat; printf '0,15,30,45 * * * * %s\n' "$SYNC_FILE"; } | crontab -u "$BOT_USER" -
+	{ crontab_without "$BOT_USER" "$SYNC_FILE"; printf '0,15,30,45 * * * * %s\n' "$SYNC_FILE"; } | crontab -u "$BOT_USER" -
 else
 	rm -f "$SYNC_FILE" /etc/sudoers.d/pariahbot-sync
+	# And its crontab line, or cron keeps trying to run the missing script.
+	if crontab -u "$BOT_USER" -l >/dev/null 2>&1; then
+		crontab_without "$BOT_USER" "$SYNC_FILE" | crontab -u "$BOT_USER" -
+	fi
 fi
 
 # Register the current slash commands immediately, then start the service.
