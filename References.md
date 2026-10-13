@@ -81,3 +81,5 @@ from them, it's on purpose.
 | Fetching an address a user typed in | `safeFetch` in [lib/safeFetch.js](lib/safeFetch.js), always (WorkingAgreements.md § 6) |
 | Something scheduled that must survive restarts | temporary bans in [lib/moderation.js](lib/moderation.js), or [lib/giveaways.js](lib/giveaways.js) |
 | Managing Discord AutoMod rules without overwriting an admin's edits | `syncGuild` in [lib/bannedWords.js](lib/bannedWords.js) |
+| Reacting to audit log entries, or logging a server event | `handleAuditEntry` and `post` in [lib/serverLog.js](lib/serverLog.js), wired up in [events/guildAuditLogEntryCreate.js](events/guildAuditLogEntryCreate.js) |
+| A new gateway intent | [lib/intents.js](lib/intents.js), with what needs it, and ProjectContext.md § 5 if it is privileged |

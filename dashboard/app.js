@@ -214,7 +214,8 @@ async function showStatus() {
 			integration('Twitch', status.integrations.twitch),
 			integration('YouTube', status.integrations.youtube),
 			integration('Instagram', status.integrations.instagram),
-			integration('Command log channel', status.integrations.logChannel)),
+			integration('Command log channel', status.integrations.logChannel),
+			integration('Server log message text', status.integrations.serverLogMessageText)),
 		card('RSS feeds with errors', null, table(
 			['Server', 'Feed', 'Error'],
 			status.feedErrors.map((feed) => h('tr', {}, h('td', {}, feed.guild), h('td', {}, feed.title), h('td', { class: 'bad' }, feed.error))),

@@ -189,7 +189,8 @@ without it, and a feature shouldn't stop working for a host who turns the
 intent off.
 
 Banned words are the biggest case. Reading message text needs the privileged
-Message Content intent, so the bot never sees what members write. Instead it
+Message Content intent, which the bot only has when the host opts in to the
+server log's message text, and never uses for this. Instead it
 creates **Discord AutoMod rules** from the server's chosen lists and words
 (`lib/bannedWords.js`), and Discord does the blocking:
 - **Blocked before anyone sees it,** even while the bot is offline.
