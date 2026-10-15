@@ -16,7 +16,7 @@ function loadApp() {
 	// property of the context — so what the test needs is handed out explicitly.
 	const source = `${fs.readFileSync(path.resolve(__dirname, '..', 'dashboard', 'app.js'), 'utf8')
 		.replace(/\r?\nstart\(\);\s*$/, '\n')}
-		globalThis.__test = { state, visibleTabs, featureOn, ifFeature, TABS };`;
+		globalThis.__test = { state, visibleTabs, featureOn, ifFeature, TABS, buildInviteUrl };`;
 
 	const context = {
 		document: { getElementById: () => null, createElement: () => ({ append() {}, setAttribute() {}, addEventListener() {} }) },
@@ -25,6 +25,9 @@ function loadApp() {
 		setTimeout,
 		clearTimeout,
 		console,
+		// Browser globals the page uses that a bare vm context doesn't provide.
+		URL,
+		URLSearchParams,
 	};
 	vm.createContext(context);
 	vm.runInContext(source, context);
@@ -111,4 +114,37 @@ test('ifFeature hides a card group but keeps it for an enabled feature', () => {
 
 	assert.equal(app.ifFeature('rss', 'card-a', 'card-b'), null);
 	assert.deepEqual(app.ifFeature('streamers', 'card-a', 'card-b'), ['card-a', 'card-b']);
+});
+
+// --- Invite builder (#91) ------------------------------------------------------
+
+const invitePermissions = require('../lib/invitePermissions');
+
+test('the page builds the same invite URL as the server would', () => {
+	// The page rebuilds the link locally as boxes are ticked, instead of asking
+	// the server each time. That means two builders, and two builders drift —
+	// so they are compared directly, for the minimum and for every feature.
+	const app = loadApp();
+	const clientId = '123456789012345678';
+
+	for (const keys of [[], ['moderation'], ['tempVoice', 'captcha'], invitePermissions.FEATURE_KEYS]) {
+		const expected = invitePermissions.inviteUrl(clientId, keys);
+		const actual = app.buildInviteUrl(clientId, invitePermissions.bitsFor(keys));
+		assert.equal(actual, expected, `differed for [${keys.join(', ')}]`);
+	}
+});
+
+test('the page combines permission bits without losing the high ones', () => {
+	// The page gets bitfields as strings and ORs them with BigInt. Doing it with
+	// Number would drop Timeout Members (bit 40) and hand out an invite missing
+	// exactly what moderation needs.
+	const app = loadApp();
+	const base = BigInt(invitePermissions.bitsFor([]).toString());
+	const mod = BigInt(invitePermissions.bitsFor(['moderation']).toString());
+
+	const url = app.buildInviteUrl('1', base | mod);
+	const granted = BigInt(new URL(url).searchParams.get('permissions'));
+
+	assert.equal(granted, invitePermissions.bitsFor(['moderation']));
+	assert.ok(granted > 2n ** 32n);
 });

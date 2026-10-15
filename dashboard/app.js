@@ -216,12 +216,118 @@ async function showStatus() {
 			integration('Instagram', status.integrations.instagram),
 			integration('Command log channel', status.integrations.logChannel),
 			integration('Server log message text', status.integrations.serverLogMessageText)),
+		inviteCard(status.invite),
 		card('RSS feeds with errors', null, table(
 			['Server', 'Feed', 'Error'],
 			status.feedErrors.map((feed) => h('tr', {}, h('td', {}, feed.guild), h('td', {}, feed.title), h('td', { class: 'bad' }, feed.error))),
 			'All feeds are working.',
 		)),
 	);
+}
+
+// Invite builder (#91). Owner-only because it lives on Status: the bot is
+// private, so an invite link only works for the application's owner anyway.
+//
+// The link is rebuilt in the page as boxes are ticked rather than asked for
+// from the server each time. Bitfields arrive as strings and are combined with
+// BigInt — Timeout Members is bit 40, so a plain | would drop it.
+// Kept as its own function so it can be checked against inviteUrl() in
+// lib/invitePermissions.js: the page builds the link itself to avoid a round
+// trip per tick, and two builders that drift would hand out a link asking for
+// the wrong permissions. URLSearchParams on both sides so the encoding matches.
+function buildInviteUrl(clientId, bits) {
+	const params = new URLSearchParams({
+		client_id: clientId,
+		scope: 'bot applications.commands',
+		permissions: bits.toString(),
+	});
+	return `https://discord.com/oauth2/authorize?${params}`;
+}
+
+function inviteCard(invite) {
+	if (!invite?.clientId) {
+		return card('Invite the bot', null, h('p', { class: 'muted' }, 'CLIENT_ID is not set on the host, so a link cannot be built.'));
+	}
+
+	const chosen = new Set(invite.features.filter((feature) => feature.alwaysOn).map((feature) => feature.key));
+	const link = h('a', { class: 'invite-link', target: '_blank', rel: 'noopener noreferrer' });
+	const summary = h('p', { class: 'muted' });
+	const boxes = new Map();
+
+	// The conveniences layer is its own toggle rather than part of a preset, so
+	// ticking a feature afterwards doesn't silently drop it again.
+	const extrasBox = h('input', { type: 'checkbox', onchange: () => refresh() });
+
+	function refresh() {
+		let bits = BigInt(invite.base);
+		for (const key of chosen) bits |= BigInt(invite.features.find((feature) => feature.key === key).bits);
+		if (extrasBox.checked) bits |= BigInt(invite.extras);
+
+		const url = buildInviteUrl(invite.clientId, bits);
+		link.href = url;
+		link.textContent = url;
+
+		// Names, not a number: nobody can read a permissions bitfield, and this
+		// is the moment to understand what is being granted.
+		const names = [...new Set(invite.features.filter((feature) => chosen.has(feature.key)).flatMap((feature) => feature.permissions))].sort();
+		const base = 'View Channel, Send Messages, Embed Links, Read Message History';
+		const extras = extrasBox.checked ? ', plus the extra conveniences' : '';
+		summary.textContent = names.length
+			? `Grants: ${base}, plus ${names.join(', ')}${extras}.`
+			: `Grants: ${base}${extras || ' — the bot answers commands and little else'}.`;
+	}
+
+	// Named to match the wiki's Bot Setup page, which publishes a Required and a
+	// Recommended invite link. Same words, same numbers — the two are pinned
+	// together by test/invitePermissions.test.js.
+	function preset(features, extras) {
+		for (const feature of invite.features) {
+			if (feature.alwaysOn) continue;
+			if (features) chosen.add(feature.key); else chosen.delete(feature.key);
+			boxes.get(feature.key).checked = features;
+		}
+		extrasBox.checked = extras;
+		refresh();
+	}
+
+	const rows = invite.features.map((feature) => {
+		const box = h('input', {
+			type: 'checkbox',
+			checked: chosen.has(feature.key),
+			// An always-on feature has no switch in a server either, so there is
+			// nothing to opt out of — shown ticked and locked rather than hidden,
+			// since it still explains part of the permissions being asked for.
+			disabled: feature.alwaysOn,
+			onchange: (event) => {
+				if (event.target.checked) chosen.add(feature.key); else chosen.delete(feature.key);
+				refresh();
+			},
+		});
+		boxes.set(feature.key, box);
+
+		return h('tr', {},
+			h('td', {}, box),
+			h('td', {}, feature.label, feature.alwaysOn ? h('span', { class: 'muted' }, ' (always on)') : null,
+				feature.note ? h('div', { class: 'muted' }, feature.note) : null),
+			h('td', {}, h('span', { class: 'muted' }, feature.permissions.join(', '))));
+	});
+
+	refresh();
+
+	return card('Invite the bot to a server', 'Tick the features you want and the link below asks for exactly their permissions.',
+		h('div', { class: 'row' },
+			btn('Recommended', 'primary', () => preset(true, true)),
+			btn('Required', '', () => preset(true, false)),
+			btn('Minimum', '', () => preset(false, false))),
+		table(['', 'Feature', 'Permissions'], rows, 'No features.'),
+		h('div', { class: 'row' }, h('label', {}, extrasBox,
+			' Extra conveniences — threads, reactions, attachments, nicknames, speaking in voice, Mention Everyone. '
+			+ 'No feature needs these; they are what separates Recommended from Required.')),
+		summary,
+		h('p', {}, link),
+		h('p', { class: 'muted' },
+			'Only you can use this link while the application is private. To let anyone '
+			+ 'invite it, turn on Public Bot in the Developer Portal first.'));
 }
 
 // --- A server --------------------------------------------------------------------

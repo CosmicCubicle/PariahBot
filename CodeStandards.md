@@ -524,7 +524,14 @@ because switching it on creates real AutoMod rules in the server.
    that tab's entry in `TABS` in [dashboard/app.js](dashboard/app.js), so the
    tab hides with it; if it shares a tab, wrap its cards in `ifFeature`.
    Then update the wiki's Feature Switches page.
-5. Test the default, that an absent row means the default, and that switches
+5. **Give it an entry in [lib/invitePermissions.js](lib/invitePermissions.js)**
+   with the Discord permissions it cannot work without, so the invite builder
+   asks for them. [test/invitePermissions.test.js](test/invitePermissions.test.js)
+   fails until you do. A permission a feature merely benefits from belongs in
+   `RECOMMENDED_EXTRAS`, not on the feature. Changing either changes a number
+   the wiki publishes, and the test pins both — update the wiki's Bot Setup
+   page with it.
+6. Test the default, that an absent row means the default, and that switches
    don't leak between guilds — see [test/features.test.js](test/features.test.js).
 
 ### What "off" means
