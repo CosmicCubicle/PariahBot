@@ -138,6 +138,24 @@ test('with no category the channel is created at the top level', async () => {
 	assert.equal(guildSettings.getGuildSettings('g-nocat').defaultCategoryId, null);
 });
 
+test('the channel is created under the name the admin gave', async () => {
+	// /alerts restore-default requires a name: or an existing channel:, so the
+	// bot no longer picks "bot-alerts" on anyone's behalf.
+	const guild = mockCreatingGuild('g-named');
+
+	await createDefaultAlertInfra(guild, null, 'staff-alerts');
+
+	assert.equal(guild.created[0].name, 'staff-alerts');
+});
+
+test('the default name is only used when a caller asks for it', async () => {
+	const guild = mockCreatingGuild('g-default');
+
+	await createDefaultAlertInfra(guild);
+
+	assert.equal(guild.created[0].name, 'bot-alerts');
+});
+
 test('a non-category is refused rather than used as a parent', async () => {
 	const guild = mockCreatingGuild('g-bad');
 	const notACategory = { id: 'text-1', name: 'general', type: ChannelType.GuildText };

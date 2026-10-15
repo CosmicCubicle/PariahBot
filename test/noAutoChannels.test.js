@@ -13,9 +13,9 @@ const path = require('node:path');
 // this test until someone adds it here, which forces the question to be
 // answered rather than assumed.
 const ALLOWED = {
-	'lib/defaultAlertInfra.js': 'only from /alerts restore-default — running it is the ask',
+	'lib/defaultAlertInfra.js': 'only from /alerts restore-default, which requires a name: or an existing channel:',
 	'lib/voiceHubs.js': 'createHub from /voice create, and restoreHub from the dead-hub Restore button',
-	'commands/security.js': 'only with an explicit name: and category: from the admin',
+	'commands/security.js': 'from /security ... setup — running setup is the ask, and the reply always says what was created',
 	'events/voiceStateUpdate.js': 'a temporary channel, from a member joining a hub an admin created',
 };
 

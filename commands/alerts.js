@@ -59,29 +59,52 @@ async function handleRemoveDefault(interaction) {
 	});
 }
 
+// Say which channel, either way: `channel:` adopts one that already exists, or
+// `name:` has one made. Neither is refused rather than guessed — the bot used
+// to pick the name #bot-alerts itself, and a channel appearing under a name
+// nobody chose is exactly what #92 was about.
 async function handleRestoreDefault(interaction) {
 	requireMod(interaction);
-	const settings = guildSettings.getGuildSettings(interaction.guildId);
-	const categoryStillExists = settings.defaultCategoryId && interaction.guild.channels.cache.has(settings.defaultCategoryId);
-	const channelStillExists = settings.defaultChannelId && interaction.guild.channels.cache.has(settings.defaultChannelId);
 
-	if (categoryStillExists && channelStillExists) {
-		guildSettings.setDefaultAlertInfra(interaction.guildId, settings.defaultCategoryId, settings.defaultChannelId);
-		await interaction.reply({ content: `The default alert channel already exists: <#${settings.defaultChannelId}>.`, ephemeral: true });
+	const existing = interaction.options.getChannel('channel');
+	const name = interaction.options.getString('name');
+	const category = interaction.options.getChannel('category');
+
+	if (existing && name) {
+		throw new Error('Pass either `channel:` to use a channel that already exists, or `name:` to have me make one — not both.');
+	}
+	if (!existing && !name) {
+		throw new Error(
+			'Tell me which channel to use: `channel:#somewhere` for one that already exists, '
+			+ 'or `name:bot-alerts` (with an optional `category:`) to have me make it.',
+		);
+	}
+
+	if (existing) {
+		// Recorded against the channel's own category, so /alerts status and the
+		// dashboard describe where it actually is.
+		guildSettings.setDefaultAlertInfra(interaction.guildId, existing.parentId ?? null, existing.id);
+		await interaction.reply({ content: `Alerts will go to ${existing}.`, ephemeral: true });
 		return;
+	}
+
+	// Guarded rather than creating a second one: the recorded channel still
+	// being there means this was probably a mistake.
+	const settings = guildSettings.getGuildSettings(interaction.guildId);
+	if (settings.defaultChannelId && interaction.guild.channels.cache.has(settings.defaultChannelId)) {
+		throw new Error(`I already made <#${settings.defaultChannelId}> for alerts. Use \`/alerts channel\` to point somewhere else, or \`/alerts remove-default\` to forget it first.`);
 	}
 
 	// The category is only ever one that already exists: since #92 the bot
 	// creates no channel nobody asked for, and that includes the category it
 	// used to make to hold this one. Without it the channel lands at the top
 	// level, which is visible and movable rather than surprising.
-	const category = interaction.options.getChannel('category');
-	const channel = await createDefaultAlertInfra(interaction.guild, category);
+	const channel = await createDefaultAlertInfra(interaction.guild, category, name);
 
 	await interaction.reply({
 		content: category
-			? `Created the alert channel ${channel} in **${category.name}**.`
-			: `Created the alert channel ${channel}. Pass \`category:\` to put it in a category.`,
+			? `**I created ${channel}** in **${category.name}**, and alerts will go there.`
+			: `**I created ${channel}**, and alerts will go there. Pass \`category:\` next time to put it in a category.`,
 		ephemeral: true,
 	});
 }
@@ -184,10 +207,20 @@ module.exports = {
 			.setDescription("(Mod) Forget the bot's #bot-alerts channel. The channel itself is left in place."))
 		.addSubcommand((sub) => sub
 			.setName('restore-default')
-			.setDescription("(Mod) Create the bot's #bot-alerts channel. Nothing is created unless you run this.")
+			.setDescription('(Mod) Set the alert channel: an existing one, or a name for me to create.')
+			.addChannelOption((option) => option
+				.setName('channel')
+				.setDescription('An existing channel to use')
+				.addChannelTypes(ChannelType.GuildText)
+				.setRequired(false))
+			.addStringOption((option) => option
+				.setName('name')
+				.setDescription('Name for a channel to create instead, e.g. bot-alerts')
+				.setMaxLength(100)
+				.setRequired(false))
 			.addChannelOption((option) => option
 				.setName('category')
-				.setDescription('Existing category to put it in (default: no category)')
+				.setDescription('Existing category to create it in (default: no category)')
 				.addChannelTypes(ChannelType.GuildCategory)
 				.setRequired(false)))
 		.addSubcommand((sub) => sub

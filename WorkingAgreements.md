@@ -226,27 +226,49 @@ an internal page and post it into Discord (server-side request forgery).
 
 ## 7. Never create a channel nobody asked for
 
-The bot creates a channel only when a person has explicitly asked for that
-channel, in that place. Running a setup command is consent to configure a
-feature; it is not consent to have a channel appear.
+The bot creates a channel only when someone ran something that asks for it,
+and it always says which channel it made.
 
-**Why it matters:** a self-hosted bot is in someone else's server. A channel
-appearing on its own is confusing at best — the `#bot-alerts` channel this
-rule removed was created on every startup, in every server, and admins had no
-idea what had made it. Channel creation is also not something an admin can
-undo by changing a setting; they have to go and delete it.
+Both halves matter. Setting up a feature **is** the ask — #92 calls these
+features "considered consent" — so `/security captcha setup` making a
+`#verify` channel is fine. What is never fine is a channel appearing with
+nobody present, or appearing quietly.
+
+**Why it matters:** a self-hosted bot is in someone else's server. The
+`#bot-alerts` channel this rule removed was created on every startup, in every
+server, and admins had no idea what had made it. Channel creation also isn't
+something an admin can undo by changing a setting; they have to go and delete
+it. Saying "I created #verify" in the reply costs a line and removes the
+entire mystery.
 
 ### What counts as asking
 
 - **An explicit command or button.** `/voice create`, `/alerts
-  restore-default`, the dead-hub **Restore** button. Running it is the ask.
-- **A name plus a category.** Where a setup command can make a channel for
-  you, it takes both: `name:` says what to make and `category:` says where it
-  goes. Naming a channel without saying where it goes is refused
-  (`resolveChannel` in [commands/security.js](commands/security.js)).
+  restore-default`, `/security ... setup`, the dead-hub **Restore** button.
+  Running it is the ask.
 - **A hub, for the channels it spawns.** Temporary voice channels are created
   when a member joins a hub, with no admin present — the admin consented by
   creating the hub, and spawning channels is the whole feature.
+
+### Say what was made
+
+Any reply from a command that created a channel names it, in its own
+sentence: `` `**I created ${channel}** for this.` `` Never leave it to be
+discovered in the channel list.
+
+### Where it goes
+
+- **A name needs a category.** Where a command takes a `name:` for a channel
+  to create, it also takes `category:`, and a name without one is refused —
+  naming a channel also means saying where it goes (`resolveChannel` in
+  [commands/security.js](commands/security.js)).
+- **A default name doesn't.** Omitting both is allowed and uses the feature's
+  own default (`#verify`, `#do-not-post`), at the top level. There is nothing
+  deliberate to place, and refusing would make the common case harder for no
+  gain.
+- **Never guess a name.** `/alerts restore-default` requires `name:` or an
+  existing `channel:`. It used to invent `#bot-alerts`, which is how a channel
+  under a name nobody chose ended up in people's servers.
 
 ### What does not
 
