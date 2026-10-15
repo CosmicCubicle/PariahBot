@@ -221,3 +221,52 @@ an internal page and post it into Discord (server-side request forgery).
   you change it.
 - Fixed addresses written in the code (the Twitch, YouTube and Instagram
   APIs) don't need it.
+
+---
+
+## 7. Never create a channel nobody asked for
+
+The bot creates a channel only when a person has explicitly asked for that
+channel, in that place. Running a setup command is consent to configure a
+feature; it is not consent to have a channel appear.
+
+**Why it matters:** a self-hosted bot is in someone else's server. A channel
+appearing on its own is confusing at best — the `#bot-alerts` channel this
+rule removed was created on every startup, in every server, and admins had no
+idea what had made it. Channel creation is also not something an admin can
+undo by changing a setting; they have to go and delete it.
+
+### What counts as asking
+
+- **An explicit command or button.** `/voice create`, `/alerts
+  restore-default`, the dead-hub **Restore** button. Running it is the ask.
+- **A name plus a category.** Where a setup command can make a channel for
+  you, it takes both: `name:` says what to make and `category:` says where it
+  goes. Naming a channel without saying where it goes is refused
+  (`resolveChannel` in [commands/security.js](commands/security.js)).
+- **A hub, for the channels it spawns.** Temporary voice channels are created
+  when a member joins a hub, with no admin present — the admin consented by
+  creating the hub, and spawning channels is the whole feature.
+
+### What does not
+
+- **A startup or join sweep.** `events/ready.js` and a `GuildCreate` handler
+  run with nobody present to ask, so nothing reached from them may create a
+  channel. The GuildCreate handler existed only to auto-provision and was
+  deleted outright.
+- **A missing setting.** "No alert channel is configured" is an ordinary
+  state, not a problem to fix by making one. Say so instead:
+  `lib/alertDelivery.js` logs that the alert was dropped and names
+  `/alerts channel`.
+- **A typed name that matches nothing.** Creating a category because the name
+  an admin typed didn't match an existing one is still creating a channel they
+  didn't ask for. Take an existing one through a channel option, so Discord
+  does the picking.
+
+### Adding a call site
+
+`guild.channels.create()` is pinned by
+[test/noAutoChannels.test.js](test/noAutoChannels.test.js): a new call site
+fails the suite until it is added to that file's `ALLOWED` map with the ask
+named. That is deliberate — it makes the question answered rather than
+assumed. Deleting a call site means taking it off the list.

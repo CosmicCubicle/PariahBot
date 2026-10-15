@@ -9,13 +9,39 @@ const EMBED_COLOR = 0x5865f2;
 const DEFAULT_SCREENING_CHANNEL_NAME = 'verify';
 const DEFAULT_HONEYPOT_CHANNEL_NAME = 'do-not-post';
 
-async function resolveOrCreateChannel(interaction, defaultName) {
+// Either adopts a channel that already exists, or creates one the admin has
+// explicitly named and placed. It used to create #verify / #do-not-post on its
+// own whenever `channel:` was left out, which #92 removed: running a setup
+// command is consent to configure a feature, not consent to have a channel
+// appear. `suggestedName` is only ever offered back in the error message.
+async function resolveChannel(interaction, suggestedName) {
 	const supplied = interaction.options.getChannel('channel');
+	const name = interaction.options.getString('name');
+	const category = interaction.options.getChannel('category');
+
+	if (supplied && name) {
+		throw new Error('Pass either `channel:` to use a channel that already exists, or `name:` to have me make one — not both.');
+	}
 	if (supplied) return supplied;
 
+	if (!name) {
+		throw new Error(
+			'Tell me which channel to use. Either `channel:#existing-channel`, or '
+			+ `\`name:${suggestedName} category:<a category>\` and I'll make it.`,
+		);
+	}
+
+	// Required alongside a name, per #92: naming a channel to be created also
+	// means saying where it goes. Discord can't express "required only when
+	// another option is set", so it's checked here.
+	if (!category) {
+		throw new Error(`Also pass \`category:\` so I know where to put **#${name}**. Pick an existing category.`);
+	}
+
 	return interaction.guild.channels.create({
-		name: defaultName,
+		name,
 		type: ChannelType.GuildText,
+		parent: category.id,
 		reason: `Created via /security by ${interaction.user.tag}`,
 	});
 }
@@ -55,7 +81,7 @@ async function handleCaptchaSetup(interaction) {
 	// more than Discord's 3-second window comfortably allows.
 	await interaction.deferReply({ ephemeral: true });
 
-	const channel = await resolveOrCreateChannel(interaction, DEFAULT_SCREENING_CHANNEL_NAME);
+	const channel = await resolveChannel(interaction, DEFAULT_SCREENING_CHANNEL_NAME);
 	const { screeningMessageId } = guildSettings.getGuildSettings(interaction.guildId);
 
 	// Staff — admin and mod roles — keep sight of the screening channel.
@@ -126,7 +152,7 @@ async function handleHoneypotSetup(interaction) {
 
 	await interaction.deferReply({ ephemeral: true });
 
-	const channel = await resolveOrCreateChannel(interaction, DEFAULT_HONEYPOT_CHANNEL_NAME);
+	const channel = await resolveChannel(interaction, DEFAULT_HONEYPOT_CHANNEL_NAME);
 	await setupHoneypotChannel(channel);
 	guildSettings.setHoneypot(interaction.guildId, channel.id, action);
 
@@ -214,6 +240,22 @@ function channelOption(option, description) {
 		.setRequired(false);
 }
 
+// The create-it-for-me pair (#92). Both optional at the Discord level and
+// checked together in resolveChannel: a name without a category is refused,
+// because naming a channel to be made also means saying where it goes.
+function addCreateOptions(sub, suggestedName) {
+	return sub
+		.addStringOption((option) => option
+			.setName('name')
+			.setDescription(`Make a new channel with this name instead (e.g. ${suggestedName}) — needs category:`)
+			.setRequired(false))
+		.addChannelOption((option) => option
+			.setName('category')
+			.setDescription('Existing category to create it in — required with name:')
+			.addChannelTypes(ChannelType.GuildCategory)
+			.setRequired(false));
+}
+
 module.exports = {
 	// No module-level `feature` (#69), unlike single-feature commands: /security
 	// spans two independent switches. The captcha and honeypot groups are gated
@@ -226,10 +268,10 @@ module.exports = {
 		.addSubcommandGroup((group) => group
 			.setName('captcha')
 			.setDescription('Require new members to verify before they get the member role.')
-			.addSubcommand((sub) => sub
+			.addSubcommand((sub) => addCreateOptions(sub, 'verify')
 				.setName('setup')
 				.setDescription('(Admin) Enable the captcha and post the verification message.')
-				.addChannelOption((option) => channelOption(option, 'Screening channel to use (a new one is created if omitted)'))
+				.addChannelOption((option) => channelOption(option, 'Existing screening channel to use'))
 				.addBooleanOption((option) => option
 					.setName('adjust_visibility')
 					.setDescription('Also hide the rest of the server from unverified members (default: no)')
@@ -240,10 +282,10 @@ module.exports = {
 		.addSubcommandGroup((group) => group
 			.setName('honeypot')
 			.setDescription('A trap channel that removes anyone who posts in it.')
-			.addSubcommand((sub) => sub
+			.addSubcommand((sub) => addCreateOptions(sub, 'do-not-post')
 				.setName('setup')
 				.setDescription('(Admin) Enable the honeypot and post its warning message.')
-				.addChannelOption((option) => channelOption(option, 'Trap channel to use (a new one is created if omitted)'))
+				.addChannelOption((option) => channelOption(option, 'Existing trap channel to use'))
 				.addStringOption((option) => option
 					.setName('action')
 					.setDescription('What to do with anyone who posts there (default: remove)')

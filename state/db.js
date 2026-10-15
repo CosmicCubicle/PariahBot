@@ -334,12 +334,16 @@ if (!hasColumn('guild_settings', 'alert_channel_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN alert_channel_id TEXT');
 }
 
-// The bot's own auto-provisioned default alert category/channel — distinct from
-// alert_channel_id (which only ever holds an admin's explicit choice) so an admin
-// override and "what we made as a fallback" never get confused with each other.
-// default_alerts_disabled is a separate sticky flag: without it, a guild where an
-// admin explicitly removed the default would look identical (both columns null) to
-// a guild that never had one, and the next restart would silently recreate it.
+// The channel created by /alerts restore-default — distinct from alert_channel_id
+// (which only ever holds an admin's choice of an existing channel) so "the one we
+// made" and "the one they picked" never get confused with each other.
+//
+// default_alerts_disabled is now vestigial. It existed because the bot used to
+// recreate this channel on every startup, so a guild that had deliberately
+// removed it needed to look different from one that never had it. #92 removed
+// that auto-provisioning, so nothing recreates anything and there is nothing for
+// the flag to prevent. Kept rather than dropped: it is read by /alerts status and
+// the dashboard, and a migration to remove it would buy nothing.
 if (!hasColumn('guild_settings', 'default_category_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN default_category_id TEXT');
 }

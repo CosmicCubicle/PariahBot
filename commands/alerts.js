@@ -71,8 +71,19 @@ async function handleRestoreDefault(interaction) {
 		return;
 	}
 
-	const channel = await createDefaultAlertInfra(interaction.guild);
-	await interaction.reply({ content: `Restored the default alert channel: ${channel}.`, ephemeral: true });
+	// The category is only ever one that already exists: since #92 the bot
+	// creates no channel nobody asked for, and that includes the category it
+	// used to make to hold this one. Without it the channel lands at the top
+	// level, which is visible and movable rather than surprising.
+	const category = interaction.options.getChannel('category');
+	const channel = await createDefaultAlertInfra(interaction.guild, category);
+
+	await interaction.reply({
+		content: category
+			? `Created the alert channel ${channel} in **${category.name}**.`
+			: `Created the alert channel ${channel}. Pass \`category:\` to put it in a category.`,
+		ephemeral: true,
+	});
 }
 
 async function handleTest(interaction) {
@@ -117,9 +128,10 @@ async function handleStatus(interaction) {
 			? `Channel: <#${settings.alertChannelId}> (explicitly set)`
 			: settings.defaultChannelId
 				? `Channel: <#${settings.defaultChannelId}> (default)`
-				: settings.defaultAlertsDisabled
-					? 'Channel: none configured (default disabled)'
-					: 'Channel: none configured yet',
+				// No channel at all is now an ordinary state rather than something
+				// that only happens if an admin removed one: since #92 the bot never
+				// creates one by itself. Say what to do about it.
+				: '⚠️ Channel: none — alerts are being dropped. Set one with `/alerts channel`, or `/alerts restore-default` to have me make one.',
 		recipients.length > 0 ? `DMs: ${recipients.map((id) => `<@${id}>`).join(', ')}` : 'DMs: none configured',
 	];
 
@@ -169,10 +181,15 @@ module.exports = {
 				.setRequired(true)))
 		.addSubcommand((sub) => sub
 			.setName('remove-default')
-			.setDescription("Delete the bot's default alert category/channel and stop auto-recreating it."))
+			.setDescription("(Mod) Forget the bot's #bot-alerts channel. The channel itself is left in place."))
 		.addSubcommand((sub) => sub
 			.setName('restore-default')
-			.setDescription("Recreate the bot's default alert category/channel if it's missing."))
+			.setDescription("(Mod) Create the bot's #bot-alerts channel. Nothing is created unless you run this.")
+			.addChannelOption((option) => option
+				.setName('category')
+				.setDescription('Existing category to put it in (default: no category)')
+				.addChannelTypes(ChannelType.GuildCategory)
+				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('test')
 			.setDescription('Send a generic test alert to whatever is currently configured.'))
