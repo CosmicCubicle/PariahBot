@@ -1,5 +1,4 @@
 const { Events } = require('discord.js');
-const { ensureDefaultAlertInfra } = require('../lib/defaultAlertInfra');
 const { reconcileTempChannels } = require('../lib/tempChannelCleanup');
 const { checkAndNotifyDeadHubs } = require('../lib/hubDesync');
 const autoDeleteStore = require('../state/autoDeleteChannels');
@@ -22,9 +21,10 @@ module.exports = {
 		// hydration (only for a new join or a guild recovering from an outage), so
 		// every already-joined guild needs its own check here instead.
 		for (const guild of client.guilds.cache.values()) {
-			// Order matters: the alert destination has to exist before a dead-hub
-			// notice might need to be sent to it.
-			await ensureDefaultAlertInfra(guild);
+			// No alert channel is created here any more (#92): the bot never makes a
+			// channel nobody asked for. A dead-hub notice below simply has nowhere to
+			// go until an admin sets a destination with /alerts channel, and
+			// lib/alertDelivery.js logs that rather than failing silently.
 			await reconcileTempChannels(guild);
 			try {
 				await checkAndNotifyDeadHubs(guild);

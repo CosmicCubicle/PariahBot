@@ -221,3 +221,74 @@ an internal page and post it into Discord (server-side request forgery).
   you change it.
 - Fixed addresses written in the code (the Twitch, YouTube and Instagram
   APIs) don't need it.
+
+---
+
+## 7. Never create a channel nobody asked for
+
+The bot creates a channel only when someone ran something that asks for it,
+and it always says which channel it made.
+
+Both halves matter. Setting up a feature **is** the ask — #92 calls these
+features "considered consent" — so `/security captcha setup` making a
+`#verify` channel is fine. What is never fine is a channel appearing with
+nobody present, or appearing quietly.
+
+**Why it matters:** a self-hosted bot is in someone else's server. The
+`#bot-alerts` channel this rule removed was created on every startup, in every
+server, and admins had no idea what had made it. Channel creation also isn't
+something an admin can undo by changing a setting; they have to go and delete
+it. Saying "I created #verify" in the reply costs a line and removes the
+entire mystery.
+
+### What counts as asking
+
+- **An explicit command or button.** `/voice create`, `/alerts
+  restore-default`, `/security ... setup`, the dead-hub **Restore** button.
+  Running it is the ask.
+- **A hub, for the channels it spawns.** Temporary voice channels are created
+  when a member joins a hub, with no admin present — the admin consented by
+  creating the hub, and spawning channels is the whole feature.
+
+### Say what was made
+
+Any reply from a command that created a channel names it, in its own
+sentence: `` `**I created ${channel}** for this.` `` Never leave it to be
+discovered in the channel list.
+
+### Where it goes
+
+- **A name needs a category.** Where a command takes a `name:` for a channel
+  to create, it also takes `category:`, and a name without one is refused —
+  naming a channel also means saying where it goes (`resolveChannel` in
+  [commands/security.js](commands/security.js)).
+- **A default name doesn't.** Omitting both is allowed and uses the feature's
+  own default (`#verify`, `#do-not-post`), at the top level. There is nothing
+  deliberate to place, and refusing would make the common case harder for no
+  gain.
+- **Never guess a name.** `/alerts restore-default` requires `name:` or an
+  existing `channel:`. It used to invent `#bot-alerts`, which is how a channel
+  under a name nobody chose ended up in people's servers.
+
+### What does not
+
+- **A startup or join sweep.** `events/ready.js` and a `GuildCreate` handler
+  run with nobody present to ask, so nothing reached from them may create a
+  channel. The GuildCreate handler existed only to auto-provision and was
+  deleted outright.
+- **A missing setting.** "No alert channel is configured" is an ordinary
+  state, not a problem to fix by making one. Say so instead:
+  `lib/alertDelivery.js` logs that the alert was dropped and names
+  `/alerts channel`.
+- **A typed name that matches nothing.** Creating a category because the name
+  an admin typed didn't match an existing one is still creating a channel they
+  didn't ask for. Take an existing one through a channel option, so Discord
+  does the picking.
+
+### Adding a call site
+
+`guild.channels.create()` is pinned by
+[test/noAutoChannels.test.js](test/noAutoChannels.test.js): a new call site
+fails the suite until it is added to that file's `ALLOWED` map with the ask
+named. That is deliberate — it makes the question answered rather than
+assumed. Deleting a call site means taking it off the list.

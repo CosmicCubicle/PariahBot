@@ -12,7 +12,7 @@ const { requireMod } = require('../lib/permissions');
 async function handleAdd(interaction) {
 	requireMod(interaction);
 	const hub = interaction.options.getChannel('hub');
-	const category = await voiceHubs.resolveOrCreateCategory(interaction.guild, interaction.options.getString('category'));
+	const category = interaction.options.getChannel('category');
 	voiceHubs.addExistingHub(interaction.guild, hub, category);
 	await interaction.reply({
 		content: `Registered ${hub} as a voice hub — joining it will create a temporary channel${category ? ` in ${category}` : ''}. Change its name template and limits with \`/voice edit\`.`,
@@ -22,7 +22,7 @@ async function handleAdd(interaction) {
 
 async function handleCreate(interaction) {
 	requireMod(interaction);
-	const category = await voiceHubs.resolveOrCreateCategory(interaction.guild, interaction.options.getString('category'));
+	const category = interaction.options.getChannel('category');
 	const hub = await voiceHubs.createHub(interaction.guild, interaction.options.getString('name'), category);
 	await interaction.reply({
 		content: `Created ${hub} as a voice hub — joining it will create a temporary channel${category ? ` in ${category}` : ''}. Change its name template and limits with \`/voice edit\`.`,
@@ -210,10 +210,10 @@ module.exports = {
 				.setDescription('Voice channel users join to spawn a temp channel')
 				.addChannelTypes(ChannelType.GuildVoice)
 				.setRequired(true))
-			.addStringOption((option) => option
+			.addChannelOption((option) => option
 				.setName('category')
-				.setDescription("Category name (created if missing); defaults to the hub's own category")
-				.setMaxLength(100)
+				.setDescription("Existing category for the temp channels it makes; defaults to the hub's own")
+				.addChannelTypes(ChannelType.GuildCategory)
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('create')
@@ -223,10 +223,10 @@ module.exports = {
 				.setDescription(`Name for the new hub channel (defaults to "${voiceHubs.DEFAULT_HUB_NAME}")`)
 				.setMaxLength(100)
 				.setRequired(false))
-			.addStringOption((option) => option
+			.addChannelOption((option) => option
 				.setName('category')
-				.setDescription("Category name for the new hub (created if it doesn't exist)")
-				.setMaxLength(100)
+				.setDescription('Existing category to create the hub in')
+				.addChannelTypes(ChannelType.GuildCategory)
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('remove')
