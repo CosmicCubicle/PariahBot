@@ -1,6 +1,7 @@
 const { Events, ChannelType, PermissionFlagsBits } = require('discord.js');
 const voiceStore = require('../state/voiceChannels');
 const { cleanupIfEmpty, reconcileTempChannels } = require('../lib/tempChannelCleanup');
+const { postChannelGuide } = require('../lib/tempVoice');
 
 function buildChannelName(nameTemplate, member) {
 	return nameTemplate.replace('{owner}', member.displayName).slice(0, 100);
@@ -56,20 +57,26 @@ async function createTempChannel(member, hub, hubChannel) {
 		],
 	});
 
-	voiceStore.createTempChannel({
+	const record = {
 		channelId: tempChannel.id,
 		guildId: guild.id,
 		hubChannelId: hub.channelId,
 		ownerId: member.id,
 		minLimit: hub.minLimit,
 		maxLimit: hub.maxLimit,
-	});
+	};
+	voiceStore.createTempChannel(record);
 
 	try {
 		await member.voice.setChannel(tempChannel);
 	} catch (error) {
 		console.error(`Failed to move ${member.user.tag} into temp channel ${tempChannel.id}:`, error.message);
 	}
+
+	// After the move, so the guide is waiting when the owner looks at the chat.
+	await postChannelGuide(tempChannel, record).catch((error) => {
+		console.error(`TempVoice: failed to post the /vc guide in ${tempChannel.id}:`, error.message);
+	});
 }
 
 module.exports = {
