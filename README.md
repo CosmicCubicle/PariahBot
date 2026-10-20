@@ -16,7 +16,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
   their server with `/setup feature`, or from the dashboard. Settings are kept,
   anything already running finishes, and `/help` marks what is off and how to
   turn it back on.
-- **Temporary voice channels** — join-to-create hubs with their own name template and user limits, owner self-service controls (`/vc`) that admins can switch off one by one, automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted. Also managed from the dashboard's Voice tab, including closing live channels.
+- **Temporary voice channels** — join-to-create hubs with their own name template and user limits, owner self-service controls (`/vc`) that admins can switch off one by one, a guide to those controls posted in each new channel, automatic cleanup when a channel empties, and detection/recovery for hubs whose channel was deleted. Also managed from the dashboard's Voice tab, including closing live channels.
 - **Self-service role menus** — admins publish a dropdown; members open a personal, pre-checked menu and pick their own roles.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mods always skipped.
