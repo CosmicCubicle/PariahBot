@@ -72,7 +72,6 @@ function getGuildSettings(guildId) {
 		honeypotChannelId: row?.honeypot_channel_id ?? null,
 		honeypotAction: row?.honeypot_action ?? 'kick',
 		streamAlertChannelId: row?.stream_alert_channel_id ?? null,
-		streamAlertRoleId: row?.stream_alert_role_id ?? null,
 		streamAlertMessage: row?.stream_alert_message ?? null,
 		instagramChannelId: row?.instagram_channel_id ?? null,
 		instagramRoleId: row?.instagram_role_id ?? null,
@@ -268,23 +267,54 @@ function clearHoneypot(guildId) {
 	clearHoneypotStmt.run(guildId);
 }
 
-// Where /streamers go-live alerts post, and the optional role they ping — see
-// lib/streamAlerts.js. Both are cleared together by /streamers disable; a null
-// stream_alert_channel_id is what "stream alerts are off" means.
+// Where /streamers go-live alerts post — see lib/streamAlerts.js. A null
+// stream_alert_channel_id is what "stream alerts are off" means. The roles
+// they ping are a list of their own, below.
 const upsertStreamAlertsStmt = db.prepare(`
-	INSERT INTO guild_settings (guild_id, stream_alert_channel_id, stream_alert_role_id)
-	VALUES (@guildId, @channelId, @roleId)
-	ON CONFLICT(guild_id) DO UPDATE SET
-		stream_alert_channel_id = excluded.stream_alert_channel_id,
-		stream_alert_role_id = excluded.stream_alert_role_id
+	INSERT INTO guild_settings (guild_id, stream_alert_channel_id)
+	VALUES (?, ?)
+	ON CONFLICT(guild_id) DO UPDATE SET stream_alert_channel_id = excluded.stream_alert_channel_id
 `);
 
-function setStreamAlerts(guildId, channelId, roleId) {
-	upsertStreamAlertsStmt.run({ guildId, channelId, roleId: roleId ?? null });
+function setStreamAlerts(guildId, channelId) {
+	upsertStreamAlertsStmt.run(guildId, channelId);
 }
 
+// /streamers disable turns off the pings along with the channel, as it did
+// when the ping was a single column.
+const clearStreamAlertsTx = db.transaction((guildId) => {
+	upsertStreamAlertsStmt.run(guildId, null);
+	clearStreamPingRoles(guildId);
+});
+
 function clearStreamAlerts(guildId) {
-	upsertStreamAlertsStmt.run({ guildId, channelId: null, roleId: null });
+	clearStreamAlertsTx(guildId);
+}
+
+// Roles pinged with each stream and upload alert (#98), any number up to
+// MAX_STREAM_PING_ROLES in lib/streamAlerts.js.
+const insertStreamPingRoleStmt = db.prepare('INSERT OR IGNORE INTO stream_alert_ping_roles (guild_id, role_id) VALUES (?, ?)');
+
+function addStreamPingRole(guildId, roleId) {
+	return insertStreamPingRoleStmt.run(guildId, roleId).changes > 0;
+}
+
+const deleteStreamPingRoleStmt = db.prepare('DELETE FROM stream_alert_ping_roles WHERE guild_id = ? AND role_id = ?');
+
+function removeStreamPingRole(guildId, roleId) {
+	return deleteStreamPingRoleStmt.run(guildId, roleId).changes > 0;
+}
+
+const deleteAllStreamPingRolesStmt = db.prepare('DELETE FROM stream_alert_ping_roles WHERE guild_id = ?');
+
+function clearStreamPingRoles(guildId) {
+	return deleteAllStreamPingRolesStmt.run(guildId).changes;
+}
+
+const selectStreamPingRolesStmt = db.prepare('SELECT role_id FROM stream_alert_ping_roles WHERE guild_id = ? ORDER BY role_id');
+
+function listStreamPingRoles(guildId) {
+	return selectStreamPingRolesStmt.all(guildId).map((row) => row.role_id);
 }
 
 // Where /instagram post alerts go, and the optional role they ping — see
@@ -392,6 +422,10 @@ module.exports = {
 	clearHoneypot,
 	setStreamAlerts,
 	clearStreamAlerts,
+	addStreamPingRole,
+	removeStreamPingRole,
+	clearStreamPingRoles,
+	listStreamPingRoles,
 	setInstagramAlerts,
 	clearInstagramAlerts,
 	setStreamAlertMessage,

@@ -31,7 +31,8 @@ function seedOldSchema() {
 		CREATE TABLE guild_settings (
 			guild_id              TEXT PRIMARY KEY,
 			mod_role_id           TEXT,
-			banned_words_enabled  INTEGER NOT NULL DEFAULT 0
+			banned_words_enabled  INTEGER NOT NULL DEFAULT 0,
+			stream_alert_role_id  TEXT
 		);
 
 		CREATE TABLE role_menus (
@@ -53,7 +54,7 @@ function seedOldSchema() {
 
 		-- g1 had banned words switched on, g2 never touched it. Both have to
 		-- survive the move to guild_feature_toggles with the right value.
-		INSERT INTO guild_settings (guild_id, mod_role_id, banned_words_enabled) VALUES ('g1', 'legacy-mod-role', 1);
+		INSERT INTO guild_settings (guild_id, mod_role_id, banned_words_enabled, stream_alert_role_id) VALUES ('g1', 'legacy-mod-role', 1, 'legacy-ping-role');
 		INSERT INTO guild_settings (guild_id, mod_role_id, banned_words_enabled) VALUES ('g2', NULL, 0);
 		INSERT INTO role_menus (message_id, guild_id, channel_id, type) VALUES ('m1', 'g1', 'c1', 'dropdown');
 		INSERT INTO role_menu_options (message_id, role_id, emoji, label) VALUES ('m1', 'r1', '🎲', 'Gamer');
@@ -104,6 +105,23 @@ test('the mod-role migration is one-time: a removed role is not resurrected', ()
 	const after = requireDbFresh();
 	const roles = after.prepare('SELECT role_id FROM guild_mod_roles WHERE guild_id = ?').all('g1');
 	assert.deepEqual(roles, [], 'nulling mod_role_id is what stops this rerunning every startup');
+});
+
+test('copies stream_alert_role_id into stream_alert_ping_roles and clears the column', () => {
+	const db = requireDbFresh();
+	const roles = db.prepare('SELECT role_id FROM stream_alert_ping_roles WHERE guild_id = ?').all('g1').map((r) => r.role_id);
+	assert.deepEqual(roles, ['legacy-ping-role']);
+	assert.equal(db.prepare('SELECT stream_alert_role_id FROM guild_settings WHERE guild_id = ?').get('g1').stream_alert_role_id, null);
+	assert.deepEqual(db.prepare('SELECT role_id FROM stream_alert_ping_roles WHERE guild_id = ?').all('g2'), [], 'g2 had no ping role');
+});
+
+test('the ping-role migration is one-time: a removed role is not resurrected', () => {
+	const db = requireDbFresh();
+	// Simulates /streamers ping remove on the role that came from the column.
+	db.prepare('DELETE FROM stream_alert_ping_roles WHERE guild_id = ? AND role_id = ?').run('g1', 'legacy-ping-role');
+
+	const after = requireDbFresh();
+	assert.deepEqual(after.prepare('SELECT role_id FROM stream_alert_ping_roles WHERE guild_id = ?').all('g1'), []);
 });
 
 test('moves banned_words_enabled into guild_feature_toggles and drops the column', () => {

@@ -3,7 +3,7 @@ const streamerStore = require('../state/streamers');
 const guildSettings = require('../state/guildSettings');
 const { PLATFORMS, requireConfigured } = require('../lib/streamPlatforms');
 const { isMod, requireMod } = require('../lib/permissions');
-const { MESSAGE_PLACEHOLDERS } = require('../lib/streamAlerts');
+const { MESSAGE_PLACEHOLDERS, MAX_STREAM_PING_ROLES, addPingRole } = require('../lib/streamAlerts');
 const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
 
 const EMBED_COLOR = 0x5865f2;
@@ -124,18 +124,77 @@ async function handleChannel(interaction) {
 		throw new Error(`I can't post embeds in ${channel} — give me View Channel, Send Messages and Embed Links there, then run this again.`);
 	}
 
-	guildSettings.setStreamAlerts(interaction.guildId, channel.id, pingRole?.id);
+	// The role is added before the channel is saved, so a refused role (the
+	// cap, @everyone) leaves nothing half-changed.
+	if (pingRole) addPingRole(interaction.guildId, pingRole.id);
+	guildSettings.setStreamAlerts(interaction.guildId, channel.id);
 
-	const notes = [`Stream and upload alerts will post in ${channel}${pingRole ? `, pinging ${pingRole}` : ''}.`];
-	if (pingRole && !pingRole.mentionable && !interaction.guild.members.me.permissions.has(PermissionFlagsBits.MentionEveryone)) {
-		notes.push(`⚠️ ${pingRole} isn't mentionable, so the ping won't notify anyone. Turn on "Allow anyone to @mention this role" in its settings, or give me Mention Everyone.`);
-	}
+	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
+	const notes = [`Stream and upload alerts will post in ${channel}, ${describePings(pingRoleIds)}.`];
+	if (pingRole) notes.push(...mentionableWarning(interaction, pingRole));
 	const missing = Object.values(PLATFORMS).filter(({ client }) => !client.isConfigured());
 	for (const { label, envVars } of missing) {
 		notes.push(`⚠️ ${label} isn't set up on this bot's host yet (${envVars}), so ${label} channels won't alert until it is.`);
 	}
 	await interaction.reply({ content: notes.join('\n'), ephemeral: true });
 }
+
+function describePings(pingRoleIds) {
+	return pingRoleIds.length
+		? `pinging ${pingRoleIds.map((id) => `<@&${id}>`).join(' ')}`
+		: 'pinging nobody (add a role with `/streamers ping add`)';
+}
+
+function mentionableWarning(interaction, role) {
+	if (role.mentionable || interaction.guild.members.me.permissions.has(PermissionFlagsBits.MentionEveryone)) return [];
+	return [`⚠️ ${role} isn't mentionable, so the ping won't notify anyone. Turn on "Allow anyone to @mention this role" in its settings, or give me Mention Everyone.`];
+}
+
+// Every reply here names roles without pinging them.
+async function replyAboutPings(interaction, lines) {
+	await interaction.reply({ content: lines.join('\n'), ephemeral: true, allowedMentions: { parse: [] } });
+}
+
+async function handlePingAdd(interaction) {
+	requireMod(interaction);
+	const role = interaction.options.getRole('role');
+	const added = addPingRole(interaction.guildId, role.id);
+	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
+	const lines = [added ? `Stream alerts will also ping ${role}.` : `${role} is already pinged.`, `Now ${describePings(pingRoleIds)}.`];
+	if (added) lines.push(...mentionableWarning(interaction, role));
+	if (!guildSettings.getGuildSettings(interaction.guildId).streamAlertChannelId) {
+		lines.push('Stream alerts are off until a channel is set with `/streamers channel`.');
+	}
+	await replyAboutPings(interaction, lines);
+}
+
+// The role option is resolved against this server by Discord, so removing by
+// its ID can't reach another server's list (WorkingAgreements.md § 2). A role
+// deleted from the server can't be picked any more; /streamers ping clear
+// handles those.
+async function handlePingRemove(interaction) {
+	requireMod(interaction);
+	const role = interaction.options.getRole('role');
+	if (!guildSettings.removeStreamPingRole(interaction.guildId, role.id)) {
+		throw new Error(`${role} isn't one of the stream ping roles. See them with \`/streamers list\`.`);
+	}
+	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
+	await replyAboutPings(interaction, [`Stream alerts no longer ping ${role}.`, `Now ${describePings(pingRoleIds)}.`]);
+}
+
+async function handlePingClear(interaction) {
+	requireMod(interaction);
+	const removed = guildSettings.clearStreamPingRoles(interaction.guildId);
+	await replyAboutPings(interaction, [removed
+		? 'Stream alerts no longer ping anyone. They still post.'
+		: 'Stream alerts already pinged nobody.']);
+}
+
+const PING_HANDLERS = {
+	add: handlePingAdd,
+	remove: handlePingRemove,
+	clear: handlePingClear,
+};
 
 // Sample values for the preview that `message` replies with.
 const PREVIEW_VALUES = { name: 'SomeStreamer', title: 'Ranked grind tonight!', url: 'https://www.twitch.tv/somestreamer', platform: 'Twitch' };
@@ -150,15 +209,15 @@ async function handleMessage(interaction) {
 	}
 
 	guildSettings.setStreamAlertMessage(interaction.guildId, text);
-	const { streamAlertRoleId } = guildSettings.getGuildSettings(interaction.guildId);
-	const preview = renderAlertContent(text, PREVIEW_VALUES, streamAlertRoleId) ?? '';
+	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
+	const preview = renderAlertContent(text, PREVIEW_VALUES, pingRoleIds) ?? '';
 	const notes = [
 		'Stream and upload alerts will now say:',
 		`> ${preview.replace(/\n/g, '\n> ')}`,
-		streamAlertRoleId
-			? `The ping for <@&${streamAlertRoleId}> goes ${text.includes('{role}') ? 'where {role} is' : 'at the start'}.`
-			: 'No ping role is set, so nobody is pinged. Add one with `/streamers channel`.',
-		'Only the ping role ever notifies anyone. @everyone or other mentions in the message show as text only.',
+		pingRoleIds.length
+			? `The ping goes ${text.includes('{role}') ? 'where {role} is' : 'at the start'}.`
+			: 'No ping roles are set, so nobody is pinged. Add one with `/streamers ping add`.',
+		'Only the ping roles ever notify anyone. @everyone or other mentions in the message show as text only.',
 	];
 	// No mentions allowed: the preview must not ping the role for real.
 	await interaction.reply({ content: notes.join('\n'), ephemeral: true, allowedMentions: { parse: [] } });
@@ -174,7 +233,7 @@ async function handleDisable(interaction) {
 	requireMod(interaction);
 	guildSettings.clearStreamAlerts(interaction.guildId);
 	await interaction.reply({
-		content: 'Stream and upload alerts are off. The streamer list is kept — `/streamers channel` turns alerts back on.',
+		content: 'Stream and upload alerts are off, and their ping roles are cleared. The streamer list is kept — `/streamers channel` turns alerts back on.',
 		ephemeral: true,
 	});
 }
@@ -230,7 +289,8 @@ function describeLink(link) {
 async function handleList(interaction) {
 	requireMod(interaction);
 
-	const { streamAlertChannelId, streamAlertRoleId, streamAlertMessage, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const { streamAlertChannelId, streamAlertMessage, streamerRoleId } = guildSettings.getGuildSettings(interaction.guildId);
+	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
 	const links = streamerStore.listLinksForGuild(interaction.guildId);
 
 	const lines = links.slice(0, MAX_LISTED).map(describeLink);
@@ -245,7 +305,7 @@ async function handleList(interaction) {
 		.setColor(EMBED_COLOR)
 		.addFields(
 			{ name: 'Alert channel', value: streamAlertChannelId ? `<#${streamAlertChannelId}>` : 'Not set — alerts are off', inline: true },
-			{ name: 'Ping role', value: streamAlertRoleId ? `<@&${streamAlertRoleId}>` : 'None', inline: true },
+			{ name: 'Ping roles', value: pingRoleIds.length ? pingRoleIds.map((id) => `<@&${id}>`).join(' ') : 'None', inline: true },
 			{ name: 'Streamer role', value: streamerRoleId ? `<@&${streamerRoleId}>` : 'Not set — only admin-added channels alert', inline: true },
 			{ name: 'Platforms', value: platformStatus },
 			{ name: 'Custom message', value: streamAlertMessage ? streamAlertMessage.slice(0, 1024) : 'None — just the ping' },
@@ -311,7 +371,7 @@ module.exports = {
 				.setRequired(false)))
 		.addSubcommand((sub) => sub
 			.setName('channel')
-			.setDescription('(Mod) Choose where alerts post, and optionally a role to ping.')
+			.setDescription('(Mod) Choose where alerts post, and optionally add a role to ping.')
 			.addChannelOption((option) => option
 				.setName('channel')
 				.setDescription('Channel for stream and upload alerts')
@@ -319,11 +379,31 @@ module.exports = {
 				.setRequired(true))
 			.addRoleOption((option) => option
 				.setName('ping_role')
-				.setDescription('Role to ping with each alert (optional)')
+				.setDescription('A role to add to the pings (optional; roles already added are kept)')
 				.setRequired(false)))
+		.addSubcommandGroup((group) => group
+			.setName('ping')
+			.setDescription(`The roles pinged with each alert, up to ${MAX_STREAM_PING_ROLES}.`)
+			.addSubcommand((sub) => sub
+				.setName('add')
+				.setDescription('(Mod) Ping another role with each alert.')
+				.addRoleOption((option) => option
+					.setName('role')
+					.setDescription('Role to ping')
+					.setRequired(true)))
+			.addSubcommand((sub) => sub
+				.setName('remove')
+				.setDescription('(Mod) Stop pinging a role with each alert.')
+				.addRoleOption((option) => option
+					.setName('role')
+					.setDescription('Role to stop pinging')
+					.setRequired(true)))
+			.addSubcommand((sub) => sub
+				.setName('clear')
+				.setDescription('(Mod) Stop pinging every role. Alerts still post.')))
 		.addSubcommand((sub) => sub
 			.setName('message')
-			.setDescription('(Mod) Set custom text for alerts. The ping role is still pinged.')
+			.setDescription('(Mod) Set custom text for alerts. The ping roles are still pinged.')
 			.addStringOption((option) => option
 				.setName('text')
 				.setDescription('Your text. Placeholders: {name} {title} {url} {platform} {role}')
@@ -334,7 +414,7 @@ module.exports = {
 			.setDescription('(Mod) Remove the custom text, so alerts are just the ping again.'))
 		.addSubcommand((sub) => sub
 			.setName('disable')
-			.setDescription('(Mod) Turn off stream and upload alerts. The streamer list is kept.'))
+			.setDescription('(Mod) Turn off stream and upload alerts and their pings. The streamer list is kept.'))
 		.addSubcommand((sub) => sub
 			.setName('remove')
 			.setDescription('(Mod) Remove a streamer by member or by channel.')
@@ -352,9 +432,10 @@ module.exports = {
 			.setName('list')
 			.setDescription('(Mod) Show the alert settings and every streamer on the list.')),
 	async execute(interaction) {
+		const group = interaction.options.getSubcommandGroup(false);
 		const subcommand = interaction.options.getSubcommand();
-		const handler = HANDLERS[subcommand];
-		if (!handler) throw new Error(`Unknown /streamers subcommand: ${subcommand}`);
+		const handler = group === 'ping' ? PING_HANDLERS[subcommand] : HANDLERS[subcommand];
+		if (!handler) throw new Error(`Unknown /streamers subcommand: ${[group, subcommand].filter(Boolean).join(' ')}`);
 		await handler(interaction);
 	},
 	// Suggestions for /streamers remove account — this guild's list only, and

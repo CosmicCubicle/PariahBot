@@ -521,19 +521,39 @@ function bannedWordsTab() {
 	);
 }
 
+// Stream alerts ping a list of roles (settings.roleIds, #98) and get chips;
+// Instagram pings one (settings.roleId) and keeps the single picker.
 function alertSettingsCard(title, description, prefix, settings, placeholders, extra) {
 	const channel = channelSelect(settings.channelId, 'Off');
-	const role = roleSelect(settings.roleId, 'No ping');
+	const multiRole = Array.isArray(settings.roleIds);
+	const role = multiRole ? null : roleSelect(settings.roleId, 'No ping');
 	const message = h('textarea', { value: settings.message ?? '', placeholder: `Optional. Placeholders: ${placeholders}` });
 	return card(title, description,
 		extra,
 		h('div', { class: 'row' },
 			field('Channel', channel),
-			field('Ping role', role),
-			btn('Save', 'primary', (e) => act(`${prefix}.setChannel`, { channelId: channel.value || null, roleId: role.value || null }, e.target))),
+			multiRole ? null : field('Ping role', role),
+			btn('Save', 'primary', (e) => act(`${prefix}.setChannel`, multiRole
+				? { channelId: channel.value || null }
+				: { channelId: channel.value || null, roleId: role.value || null }, e.target))),
+		multiRole ? pingRoleChips(prefix, settings) : null,
 		h('div', { class: 'row' },
-			field('Custom message (the ping role is still pinged)', message),
+			field(`Custom message (${multiRole ? 'the ping roles are' : 'the ping role is'} still pinged)`, message),
 			btn('Save message', 'secondary', (e) => act(`${prefix}.setMessage`, { message: message.value }, e.target))));
+}
+
+function pingRoleChips(prefix, settings) {
+	const newRole = roleSelect(null, null);
+	const full = settings.roleIds.length >= settings.maxRoles;
+	return h('div', {},
+		h('h3', {}, `Ping roles (${settings.roleIds.length} of ${settings.maxRoles})`),
+		h('div', { class: 'chips' }, settings.roleIds.length
+			? settings.roleIds.map((id) => h('span', { class: 'chip' }, roleName(id),
+				h('button', { type: 'button', title: 'Remove', onclick: (e) => act(`${prefix}.removePingRole`, { roleId: id }, e.target) }, '×')))
+			: h('span', { class: 'muted' }, 'No ping roles — alerts post without pinging anyone.')),
+		full
+			? h('p', { class: 'muted' }, 'That’s the most a server can have. Remove one to add another.')
+			: h('div', { class: 'row' }, field('Add a ping role', newRole), btn('Add', 'secondary', (e) => act(`${prefix}.addPingRole`, { roleId: newRole.value }, e.target))));
 }
 
 function alertsTab() {
