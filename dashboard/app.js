@@ -104,10 +104,16 @@ function channelSelect(selectedId, noneLabel) {
 			`#${channel.name}${channel.canPost ? '' : ' (bot can’t post)'}`)));
 }
 
-function roleSelect(selectedId, noneLabel) {
+// Managed roles (a bot's, or an integration's like Twitch Subscriber) can't be
+// granted by the bot, so they're left out unless the picker only pings the
+// role (`ping`) or sets channel overrides for it (`managed`) — #102. A ping
+// picker also marks roles that won't notify anyone when mentioned.
+function roleSelect(selectedId, noneLabel, { ping = false, managed = ping } = {}) {
+	const unmentionable = ping && !state.guild.permissions.mentionEveryone;
 	return h('select', {},
 		noneLabel ? h('option', { value: '' }, noneLabel) : null,
-		state.guild.roles.map((role) => h('option', { value: role.id, selected: role.id === selectedId }, `@${role.name}`)));
+		state.guild.roles.filter((role) => managed || !role.managed).map((role) => h('option', { value: role.id, selected: role.id === selectedId },
+			`@${role.name}${unmentionable && !role.mentionable ? ' (not mentionable)' : ''}`)));
 }
 
 function field(label, control, narrow = false) {
@@ -527,7 +533,7 @@ function bannedWordsTab() {
 function alertSettingsCard(title, description, prefix, settings, placeholders, extra) {
 	const channel = channelSelect(settings.channelId, 'Off');
 	const multiRole = Array.isArray(settings.roleIds);
-	const role = multiRole ? null : roleSelect(settings.roleId, 'No ping');
+	const role = multiRole ? null : roleSelect(settings.roleId, 'No ping', { ping: true });
 	const message = h('textarea', { value: settings.message ?? '', placeholder: `Optional. Placeholders: ${placeholders}` });
 	return card(title, description,
 		extra,
@@ -544,7 +550,7 @@ function alertSettingsCard(title, description, prefix, settings, placeholders, e
 }
 
 function pingRoleChips(prefix, settings) {
-	const newRole = roleSelect(null, null);
+	const newRole = roleSelect(null, null, { ping: true });
 	const full = settings.roleIds.length >= settings.maxRoles;
 	return h('div', {},
 		h('h3', {}, `Ping roles (${settings.roleIds.length} of ${settings.maxRoles})`),
@@ -564,7 +570,7 @@ function alertsTab() {
 	const igAccount = h('input', { placeholder: 'username or instagram.com link' });
 	const feedUrl = h('input', { placeholder: 'https://example.com/feed' });
 	const feedChannel = channelSelect(null, null);
-	const feedRole = roleSelect(null, 'No ping');
+	const feedRole = roleSelect(null, 'No ping', { ping: true });
 	const feedMessage = h('input', { placeholder: 'Optional. {feed} {title} {url} {role}' });
 
 	return h('div', {},
@@ -627,11 +633,13 @@ function permsChannelSelect() {
 		channel.category ? `${channel.name} (category)` : `#${channel.name}`)));
 }
 
-// @everyone is the server's ID, and isn't in state.guild.roles.
-function permsRoleSelect(withEveryone) {
+// @everyone is the server's ID, and isn't in state.guild.roles. Managed roles
+// (#102) can be given overrides and copied from, but not edited, so copy's
+// target leaves them out.
+function permsRoleSelect(withEveryone, { managed = true } = {}) {
 	return h('select', {},
 		withEveryone ? h('option', { value: state.guild.id }, '@everyone') : null,
-		state.guild.roles.map((role) => h('option', { value: role.id }, `@${role.name}`)));
+		state.guild.roles.filter((role) => managed || !role.managed).map((role) => h('option', { value: role.id }, `@${role.name}`)));
 }
 
 function renderReport(report) {
@@ -700,7 +708,7 @@ function permissionsTab() {
 	const includeChannels = h('input', { type: 'checkbox' });
 
 	const from = permsRoleSelect(true);
-	const to = permsRoleSelect(false);
+	const to = permsRoleSelect(false, { managed: false });
 	const mode = h('select', {}, state.guild.permissionTools.copyModes.map((m) => h('option', { value: m }, m)));
 	const copyOut = h('div', {});
 
