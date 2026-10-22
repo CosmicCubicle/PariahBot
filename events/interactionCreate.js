@@ -6,6 +6,7 @@ const { handleVerifyStartInteraction, handleVerifyAnswerInteraction } = require(
 const { handleEntryInteraction } = require('../lib/giveaways');
 const features = require('../lib/features');
 const { handleModerationModal } = require('../lib/moderation');
+const { handlePermsButtonInteraction } = require('../lib/permissionTools');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -29,7 +30,8 @@ module.exports = {
 				const handled = await handleHubButtonInteraction(interaction)
 					|| await handleRoleMenuButtonInteraction(interaction)
 					|| await handleVerifyStartInteraction(interaction)
-					|| await handleEntryInteraction(interaction);
+					|| await handleEntryInteraction(interaction)
+					|| await handlePermsButtonInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);

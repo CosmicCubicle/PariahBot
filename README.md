@@ -21,6 +21,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Member verification (captcha)** — new members pick a specific option from a randomized dropdown in a screening channel; passing grants them the member role. Optionally gates the rest of the server behind verification.
 - **Honeypot** — a trap channel that removes anyone who posts in it (softban by default, or ban), with admins and mods always skipped.
 - **Moderation** — `/mod` warns, kicks, bans (permanent or temporary), softbans and times out members, also from a right-click menu. Every action is kept in each member's `/mod history`, repeated warnings can time someone out automatically, and ban DMs can include an appeal note. Admins and mod roles can't be targeted, the member is DMed first, and every action is reported through the admin alerts.
+- **Permission tools** — `/perms` reports who can see and post in a channel or category, hides or shows it to a role or member, toggles who can speak there, and (admins) copies one role's permissions and channel access to another, with a preview first. Staff can't be restricted by mods, and the bot never locks itself out.
 - **Banned words** — blocks messages containing words from ready-made lists (Discord's profanity, sexual content and slur lists, plus scams, harassment and drugs) and the server's own custom words, using Discord AutoMod, so nobody sees them. Each block is reported through the admin alerts. Needs the bot to have Manage Server.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
@@ -98,6 +99,7 @@ Manage Channels alone is neither.
 | `/level` | `rank` for your (or someone's) level and XP, `leaderboard` for the server top 10. |
 | `/vc` | Controls for the temporary voice channel you currently own: `name`, `limit`, `lock`, `unlock`, `kick`, `claim`, `transfer`. |
 | `/voice` | (Mod) Voice hub management: `add`, `create`, `edit`, `remove`, `list`, `audit`, `owner-control`, `disable-owner-kick`, `enable-owner-kick`. |
+| `/perms` | (Mod): `report`, `hide`, `show`, `speak` on a channel or category. (Admin): `copy` one role's permissions and channel access to another. |
 | `/roles` | (Mod) Dropdown role menus: `dropdown create`, `dropdown add-role`, `dropdown remove-role`, `list`, `apply-channel-defaults`. |
 | `/setup` | (Admin) Server roles: `member-role`, `admin-role` and `mod-role` (each `add`, `remove`, `list`, `clear`), `streamer-role`. Also `feature list`/`enable`/`disable` to switch whole feature sets on and off. |
 | `/security` | (Admin) Anti-spam: `captcha setup`/`disable`, `honeypot setup`/`disable`, `status`. The verification itself is open to everyone. |
