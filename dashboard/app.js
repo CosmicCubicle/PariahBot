@@ -345,6 +345,7 @@ const TABS = [
 	['alerts', 'Stream, Instagram & RSS', ['streamers', 'instagram', 'rss']],
 	['autoDelete', 'Auto-delete', ['autoDelete']],
 	['moderation', 'Moderation', ['moderation']],
+	['permissions', 'Permissions', ['permissionTools']],
 	['logging', 'Logging', ['logging']],
 	['voice', 'Voice', ['tempVoice']],
 	['other', 'Giveaways & more', ['giveaways', 'captcha', 'honeypot', 'leveling']],
@@ -384,7 +385,7 @@ function renderGuild() {
 		class: state.tab === key ? 'active' : '', type: 'button', role: 'tab',
 		onclick: () => { state.tab = key; renderGuild(); },
 	}, label)));
-	const sections = { general: generalTab, features: featuresTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, logging: loggingTab, voice: voiceTab, other: otherTab };
+	const sections = { general: generalTab, features: featuresTab, bannedWords: bannedWordsTab, alerts: alertsTab, autoDelete: autoDeleteTab, moderation: moderationTab, permissions: permissionsTab, logging: loggingTab, voice: voiceTab, other: otherTab };
 	$('main').replaceChildren(
 		h('h1', {}, guild.name),
 		h('p', { class: 'muted' }, `${guild.memberCount} members · ID ${guild.id}`),
@@ -594,6 +595,121 @@ function autoDeleteTab() {
 			h('td', {}, btn('Turn off', 'danger', (e) => act('autoDelete.remove', { channelId: entry.channelId }, e.target))))), 'Not on in any channel.'),
 		h('div', { class: 'row' }, field('Channel', channel), field('Count', count, true), field('Duration', duration, true),
 			btn('Save', 'primary', (e) => act('autoDelete.set', { channelId: channel.value, count: count.value || null, duration: duration.value || null }, e.target))));
+}
+
+// --- Permissions (#100) ---------------------------------------------------------
+// The same rules as /perms, run on the server (lib/permissionTools.js). The
+// report and copy's preview are read-only GETs; Apply and Confirm are actions,
+// so they're audited like every other change here.
+
+function permsChannelSelect() {
+	return h('select', {}, state.guild.permissionTools.channels.map((channel) => h('option', { value: channel.id },
+		channel.category ? `${channel.name} (category)` : `#${channel.name}`)));
+}
+
+// @everyone is the server's ID, and isn't in state.guild.roles.
+function permsRoleSelect(withEveryone) {
+	return h('select', {},
+		withEveryone ? h('option', { value: state.guild.id }, '@everyone') : null,
+		state.guild.roles.map((role) => h('option', { value: role.id }, `@${role.name}`)));
+}
+
+function renderReport(report) {
+	return h('div', {},
+		h('h3', {}, `Who can use ${report.name}`),
+		report.notes.map((note) => h('p', { class: 'muted' }, note)),
+		table(['Access', 'Roles'], report.groups.map((group) => h('tr', {},
+			h('td', {}, group.label),
+			h('td', {}, h('div', { class: 'chips' }, group.roles.map((role) => h('span', { class: 'chip' }, role.name)))))), 'No roles.'),
+		report.memberOverrides.length
+			? table(['Member override', 'Can', 'Can’t'], report.memberOverrides.map((o) => h('tr', {},
+				h('td', {}, userLabel(o.name, o.userId)),
+				h('td', {}, o.can.join(', ') || '—'),
+				h('td', {}, o.cannot.join(', ') || '—'))), '')
+			: null);
+}
+
+function renderCopyPreview(preview, body, out) {
+	const lines = (items) => (items.length ? h('ul', {}, items.map((item) => h('li', {}, item))) : h('p', { class: 'muted' }, 'No change'));
+	out.replaceChildren(h('div', {},
+		h('h3', {}, `Copy @${preview.source} → @${preview.target} (${preview.mode})`),
+		preview.administratorLeftOut ? h('p', { class: 'muted' }, `@${preview.source} has Administrator. That’s never copied.`) : null,
+		h('p', {}, h('strong', {}, 'Server-wide permissions')),
+		lines([
+			...(preview.added.length ? [`Adds: ${preview.added.join(', ')}`] : []),
+			...(preview.removed.length ? [`Removes: ${preview.removed.join(', ')}`] : []),
+		]),
+		h('p', {}, h('strong', {}, `Channels (${preview.channels.length})`)),
+		lines(preview.channels.map((c) => `${c.name} — ${c.action}`)),
+		preview.skipped.length ? [
+			h('p', {}, h('strong', {}, `Skipped (${preview.skipped.length})`)),
+			lines(preview.skipped.map((c) => `${c.name} — I’m missing ${c.missing.join(', ')} there`)),
+		] : null,
+		preview.hasChanges
+			? h('div', { class: 'row' },
+				btn('Confirm', preview.mode === 'replace' ? 'danger' : 'primary', (e) => act('perms.copy', body, e.target)),
+				btn('Cancel', 'secondary', () => out.replaceChildren()))
+			: h('p', { class: 'muted' }, `@${preview.target} already has everything this would give it.`)));
+}
+
+// Runs a read-only /perms request and renders its result, or toasts the error.
+async function permsRead(path, button, render) {
+	button.disabled = true;
+	try {
+		render(await api(path));
+	} catch (error) {
+		toast(error.message, true);
+	} finally {
+		button.disabled = false;
+	}
+}
+
+function permissionsTab() {
+	const guildPath = `/api/guilds/${state.guild.id}/perms`;
+
+	const reportChannel = permsChannelSelect();
+	const reportOut = h('div', {});
+
+	const changeChannel = permsChannelSelect();
+	const changeTarget = permsRoleSelect(true);
+	const change = h('select', {},
+		h('option', { value: 'hide' }, 'Hide it'),
+		h('option', { value: 'show' }, 'Show it (with message history)'),
+		h('option', { value: 'speak-off' }, 'Stop them speaking'),
+		h('option', { value: 'speak-on' }, 'Let them speak'));
+	const includeChannels = h('input', { type: 'checkbox' });
+
+	const from = permsRoleSelect(true);
+	const to = permsRoleSelect(false);
+	const mode = h('select', {}, state.guild.permissionTools.copyModes.map((m) => h('option', { value: m }, m)));
+	const copyOut = h('div', {});
+
+	return h('div', {},
+		card('Who can use a channel', 'Every role, grouped by whether it can see the channel, send messages, and (for voice) connect and speak.',
+			h('div', { class: 'row' },
+				field('Channel or category', reportChannel),
+				btn('Show report', 'primary', (e) => permsRead(`${guildPath}/report/${reportChannel.value}`, e.target, (report) => reportOut.replaceChildren(renderReport(report))))),
+			reportOut),
+		card('Change access', 'Hide or show a channel or category, or stop or let a role speak there. Speaking means sending messages, and talking in voice. The bot keeps its own access, and every change goes to the admin alerts.',
+			h('div', { class: 'row' },
+				field('Channel or category', changeChannel),
+				field('Role', changeTarget),
+				field('Change', change)),
+			h('div', { class: 'row' },
+				h('label', {}, includeChannels, ' For a category, also change every channel in it'),
+				btn('Apply', 'primary', (e) => act('perms.change', { channelId: changeChannel.value, roleId: changeTarget.value, change: change.value, includeChannels: includeChannels.checked }, e.target)))),
+		card('Copy a role', 'Copy one role’s server-wide permissions and channel access onto another. add keeps what the target has; replace makes it the same as the source. You’ll see every change before anything happens.',
+			h('div', { class: 'row' },
+				field('From', from),
+				field('To', to),
+				field('Mode', mode, true),
+				btn('Preview', 'secondary', (e) => {
+					const query = new URLSearchParams({ from: from.value, to: to.value, mode: mode.value });
+					const body = { fromRoleId: from.value, toRoleId: to.value, mode: mode.value };
+					permsRead(`${guildPath}/copy-preview?${query}`, e.target, (preview) => renderCopyPreview(preview, body, copyOut));
+				})),
+			copyOut),
+	);
 }
 
 function moderationTab() {

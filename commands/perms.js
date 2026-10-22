@@ -1,31 +1,14 @@
-const {
-	SlashCommandBuilder,
-	ChannelType,
-	EmbedBuilder,
-	GuildMember,
-	OverwriteType,
-	PermissionFlagsBits,
-	Role,
-} = require('discord.js');
+const { SlashCommandBuilder, ChannelType, EmbedBuilder, GuildMember, OverwriteType, PermissionFlagsBits, Role } = require('discord.js');
 const { requireAdmin, requireMod } = require('../lib/permissions');
 const tools = require('../lib/permissionTools');
 
 // Channel and category permissions from Discord (#100). The rules — who may
-// restrict whom, what a copy changes, how the report groups roles — are in
-// lib/permissionTools.js; this file is the Discord side.
+// restrict whom, what a copy changes, how the report groups roles — and the
+// Discord work shared with the dashboard are in lib/permissionTools.js.
 //
 // Access: report, hide, show and speak are Mod; copy is Admin, since it
 // changes a role server-wide. Hide and muting with speak refuse a mod whose
 // target is staff.
-
-const CHANNEL_TYPES = [
-	ChannelType.GuildText,
-	ChannelType.GuildAnnouncement,
-	ChannelType.GuildForum,
-	ChannelType.GuildVoice,
-	ChannelType.GuildStageVoice,
-	ChannelType.GuildCategory,
-];
 
 // A role or a member, from the mentionable option. Both are resolved against
 // this server by Discord, so nothing typed can reach another one.
@@ -48,117 +31,55 @@ function requireInvokerSees(interaction, channel) {
 	}
 }
 
-// The category alone, or the category and every channel in it.
-function channelsToChange(interaction, channel) {
-	if (channel.type !== ChannelType.GuildCategory || !interaction.options.getBoolean('include_channels')) return [channel];
-	const children = interaction.guild.channels.cache
-		.filter((child) => child.parentId === channel.id)
-		.sort((a, b) => a.rawPosition - b.rawPosition);
-	return [channel, ...children.values()];
-}
-
-// Whether restricting this target would also restrict the bot: @everyone, or
-// a role the bot has.
-function targetIncludesBot(guild, target) {
-	return target.type === OverwriteType.Role && (target.id === guild.id || guild.members.me.roles.cache.has(target.id));
-}
-
-// Same idea as ensureBotRetainsConnect in commands/vc.js: before denying a
-// role the bot holds, give the bot its own allow for those permissions while
-// it still has them. Otherwise it would lose them too, and Discord only lets
-// it change permissions it holds, so it could never undo the change.
-async function keepBotAccess(channel, bits, reason) {
-	const me = channel.guild.members.me;
-	if (channel.permissionsFor(me).has(PermissionFlagsBits.Administrator)) return;
-	const own = channel.permissionOverwrites.cache.get(me.id);
-	if (own && (own.allow.bitfield & bits) === bits) return;
-	await channel.permissionOverwrites.edit(me.id, tools.flagsSetTo(bits, true), { reason, type: OverwriteType.Member });
-}
-
-// Shared by hide, show and speak: set `bits` to `value` for the target on the
-// channel (and, if asked, every channel in the category), then report it.
-async function changeAccess(interaction, { channel, target, bitsFor, value, verb, undo }) {
-	const channels = channelsToChange(interaction, channel);
-	const reason = `${verb} via /perms by ${interaction.user.tag}`;
-	const protectBot = value === false && targetIncludesBot(interaction.guild, target);
-
-	// The channel that was named has to work, or nothing is changed. Channels
-	// inside a category are skipped one by one instead, and listed.
-	const firstMissing = tools.missingForOverwrite(channel, bitsFor(channel));
-	if (firstMissing) {
-		throw new Error(`I need ${tools.permissionNames(firstMissing).join(', ')} in ${channel} to change it. Give my role those there, then run this again.`);
-	}
+// Shared by hide, show and speak: apply the change, then reply and alert.
+async function changeAccess(interaction, channel, target, changeKey) {
+	const change = tools.ACCESS_CHANGES[changeKey];
+	if (change.value === false) tools.requireMayRestrict(interaction.member, target, interaction.guildId);
 
 	await interaction.deferReply({ ephemeral: true });
-	const changed = [];
-	const skipped = [];
-	for (const each of channels) {
-		const bits = bitsFor(each);
-		const missing = tools.missingForOverwrite(each, bits);
-		if (missing) {
-			skipped.push(`${each} — I'm missing ${tools.permissionNames(missing).join(', ')} there`);
-			continue;
-		}
-		try {
-			if (protectBot) await keepBotAccess(each, bits, reason);
-			await each.permissionOverwrites.edit(target.id, tools.flagsSetTo(bits, value), { reason, type: target.type });
-			changed.push(`${each}`);
-		} catch (error) {
-			skipped.push(`${each} — ${error.message}`);
-		}
-	}
+	const { channels, changed, skipped, protectBot } = await tools.applyAccessChange(channel, {
+		change,
+		target,
+		includeChannels: interaction.options.getBoolean('include_channels'),
+		reason: `${change.verb} via /perms by ${interaction.user.tag}`,
+	});
 
+	const undo = changeKey.startsWith('speak')
+		? `run \`/perms speak\` again with the same channel and ${target.label}.`
+		: `\`/perms ${change.undoWith}\` with the same channel and ${target.label}.`;
 	const lines = [
-		`${verb} for ${target.label} in ${changed.length === 1 ? changed[0] : `${changed.length} channels`}.`,
-		changed.length > 1 ? tools.fitLines(changed, ', ', 1000) : null,
+		`${change.verb} for ${target.label} in ${changed.length === 1 ? `${changed[0]}` : `${changed.length} channels`}.`,
+		changed.length > 1 ? tools.fitLines(changed.map(String), ', ', 1000) : null,
 		channel.type === ChannelType.GuildCategory && channels.length === 1
 			? 'Only the category changed. Channels synced to it follow; others keep their own settings (add `include_channels:True` to change them too).'
 			: null,
-		skipped.length ? `Skipped ${skipped.length}:\n${tools.fitLines(skipped, '\n', 800)}` : null,
+		skipped.length ? `Skipped ${skipped.length}:\n${tools.fitLines(skipped.map(({ channel: each, why }) => `${each} — ${why}`), '\n', 800)}` : null,
 		protectBot ? 'I kept my own access with an override for myself, so I can still undo this.' : null,
 		`To undo: ${undo}`,
 	].filter(Boolean);
 
 	await interaction.editReply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
-	if (changed.length) await tools.alertPermsChange(interaction.guild, interaction.user, `Channel permissions: ${verb.toLowerCase()}`, lines.slice(0, -1));
+	if (changed.length) {
+		await tools.alertPermsChange(interaction.guild, interaction.user.tag, `Channel permissions: ${change.verb.toLowerCase()}`, lines.slice(0, -1));
+	}
 }
 
-function restrictChecks(interaction, target) {
-	if (target.id === interaction.client.user.id) throw new Error("I can't restrict myself — I'd lose the access needed to undo it.");
-	tools.requireMayRestrict(interaction.member, target, interaction.guildId);
+function options(interaction) {
+	const channel = interaction.options.getChannel('channel');
+	requireInvokerSees(interaction, channel);
+	return { channel, target: resolveTarget(interaction) };
 }
 
 async function handleHide(interaction) {
 	requireMod(interaction);
-	const channel = interaction.options.getChannel('channel');
-	const target = resolveTarget(interaction);
-	requireInvokerSees(interaction, channel);
-	restrictChecks(interaction, target);
-
-	await changeAccess(interaction, {
-		channel,
-		target,
-		bitsFor: () => tools.HIDE_BITS,
-		value: false,
-		verb: 'Hidden',
-		undo: `\`/perms show\` with the same channel and ${target.label}.`,
-	});
+	const { channel, target } = options(interaction);
+	await changeAccess(interaction, channel, target, 'hide');
 }
 
 async function handleShow(interaction) {
 	requireMod(interaction);
-	const channel = interaction.options.getChannel('channel');
-	const target = resolveTarget(interaction);
-	requireInvokerSees(interaction, channel);
-
-	await changeAccess(interaction, {
-		channel,
-		target,
-		bitsFor: () => tools.SHOW_BITS,
-		value: true,
-		verb: 'Shown (with message history)',
-		undo: `\`/perms hide\` with the same channel and ${target.label}.`,
-	});
+	const { channel, target } = options(interaction);
+	await changeAccess(interaction, channel, target, 'show');
 }
 
 // A toggle unless `allowed` says which way: muted if the target's override
@@ -167,23 +88,11 @@ async function handleShow(interaction) {
 // roles say elsewhere.
 async function handleSpeak(interaction) {
 	requireMod(interaction);
-	const channel = interaction.options.getChannel('channel');
-	const target = resolveTarget(interaction);
-	requireInvokerSees(interaction, channel);
-
+	const { channel, target } = options(interaction);
 	const chosen = interaction.options.getBoolean('allowed');
 	const overwrite = channel.permissionOverwrites.cache.get(target.id);
 	const allowed = chosen ?? Boolean(overwrite?.deny.any(tools.speakBits(channel.type)));
-	if (!allowed) restrictChecks(interaction, target);
-
-	await changeAccess(interaction, {
-		channel,
-		target,
-		bitsFor: (each) => tools.speakBits(each.type),
-		value: allowed,
-		verb: allowed ? 'Allowed to speak' : 'Stopped from speaking',
-		undo: `run \`/perms speak\` again with the same channel and ${target.label}.`,
-	});
+	await changeAccess(interaction, channel, target, allowed ? 'speak-on' : 'speak-off');
 }
 
 async function handleReport(interaction) {
@@ -191,40 +100,19 @@ async function handleReport(interaction) {
 	const channel = interaction.options.getChannel('channel');
 	requireInvokerSees(interaction, channel);
 
-	const capabilities = tools.reportCapabilities(channel.type);
-	const roles = [...interaction.guild.roles.cache.values()]
-		.sort((a, b) => b.position - a.position)
-		.map((role) => ({ id: role.id, permissions: channel.permissionsFor(role).bitfield }));
-	const groups = tools.groupByAccess(roles, capabilities);
+	const report = tools.buildReport(channel);
 	const mention = (id) => (id === interaction.guildId ? '@everyone' : `<@&${id}>`);
-
-	const memberOverrides = channel.permissionOverwrites.cache
-		.filter((overwrite) => overwrite.type === OverwriteType.Member)
-		.map((overwrite) => {
-			const describe = (bits, word) => {
-				const labels = capabilities.filter(([, bit]) => (bits & bit) === bit).map(([label]) => label);
-				return labels.length ? `${word} ${labels.join(', ')}` : null;
-			};
-			const parts = [describe(overwrite.allow.bitfield, 'can'), describe(overwrite.deny.bitfield, "can't")].filter(Boolean);
-			return `<@${overwrite.id}> — ${parts.length ? parts.join('; ') : 'other permissions only'}`;
-		});
-
-	const notes = ['A member can do whatever any of their roles allows here, unless a member override below says otherwise.'];
-	if (channel.type === ChannelType.GuildCategory) {
-		const children = interaction.guild.channels.cache.filter((child) => child.parentId === channel.id);
-		const unsynced = children.filter((child) => !child.permissionsLocked).size;
-		notes.push(`${children.size} channels inside; ${unsynced} have their own settings rather than following the category.`);
-	} else if (channel.parent) {
-		notes.push(channel.permissionsLocked ? `Follows its category, ${channel.parent}.` : `Has its own settings, not ${channel.parent}'s.`);
-	}
-
 	const embed = new EmbedBuilder()
 		.setColor(tools.INFO_COLOR)
 		.setTitle(`Who can use ${channel.name}`)
-		.setDescription(notes.join('\n'))
-		.addFields([...groups].map(([label, ids]) => ({ name: label, value: tools.fitLines(ids.map(mention), ' ') })));
-	if (memberOverrides.length) {
-		embed.addFields({ name: 'Member overrides', value: tools.fitLines(memberOverrides) });
+		.setDescription(report.notes.join('\n'))
+		.addFields(report.groups.map(({ label, roles }) => ({ name: label, value: tools.fitLines(roles.map(({ id }) => mention(id)), ' ') })));
+	if (report.memberOverrides.length) {
+		const lines = report.memberOverrides.map(({ userId, can, cannot }) => {
+			const parts = [can.length ? `can ${can.join(', ')}` : null, cannot.length ? `can't ${cannot.join(', ')}` : null].filter(Boolean);
+			return `<@${userId}> — ${parts.length ? parts.join('; ') : 'other permissions only'}`;
+		});
+		embed.addFields({ name: 'Member overrides', value: tools.fitLines(lines) });
 	}
 
 	await interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
@@ -262,7 +150,7 @@ function channelOption(option, description) {
 	return option
 		.setName('channel')
 		.setDescription(description)
-		.addChannelTypes(...CHANNEL_TYPES)
+		.addChannelTypes(...tools.PERMS_CHANNEL_TYPES)
 		.setRequired(true);
 }
 
