@@ -4,7 +4,7 @@ const guildSettings = require('../state/guildSettings');
 const { PLATFORMS, requireConfigured } = require('../lib/streamPlatforms');
 const { isMod, requireMod } = require('../lib/permissions');
 const { MESSAGE_PLACEHOLDERS, MAX_STREAM_PING_ROLES, addPingRole } = require('../lib/streamAlerts');
-const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
+const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders, unmentionableWarning } = require('../lib/alertContent');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_LISTED = 50;
@@ -131,7 +131,7 @@ async function handleChannel(interaction) {
 
 	const pingRoleIds = guildSettings.listStreamPingRoles(interaction.guildId);
 	const notes = [`Stream and upload alerts will post in ${channel}, ${describePings(pingRoleIds)}.`];
-	if (pingRole) notes.push(...mentionableWarning(interaction, pingRole));
+	if (pingRole) notes.push(...mentionableWarning(interaction, pingRole, channel));
 	const missing = Object.values(PLATFORMS).filter(({ client }) => !client.isConfigured());
 	for (const { label, envVars } of missing) {
 		notes.push(`⚠️ ${label} isn't set up on this bot's host yet (${envVars}), so ${label} channels won't alert until it is.`);
@@ -145,9 +145,13 @@ function describePings(pingRoleIds) {
 		: 'pinging nobody (add a role with `/streamers ping add`)';
 }
 
-function mentionableWarning(interaction, role) {
-	if (role.mentionable || interaction.guild.members.me.permissions.has(PermissionFlagsBits.MentionEveryone)) return [];
-	return [`⚠️ ${role} isn't mentionable, so the ping won't notify anyone. Turn on "Allow anyone to @mention this role" in its settings, or give me Mention Everyone.`];
+// Checked in the alert channel, where a channel override can give the bot
+// Mention Everyone without giving it to anyone else (#102).
+function mentionableWarning(interaction, role, channel) {
+	const { streamAlertChannelId } = guildSettings.getGuildSettings(interaction.guildId);
+	const where = channel ?? (streamAlertChannelId ? interaction.guild.channels.cache.get(streamAlertChannelId) : null);
+	const warning = unmentionableWarning(role, where);
+	return warning ? [`⚠️ ${warning}`] : [];
 }
 
 // Every reply here names roles without pinging them.

@@ -4,7 +4,7 @@ const guildSettings = require('../state/guildSettings');
 const instagram = require('../lib/instagram');
 const { isMod, requireMod } = require('../lib/permissions');
 const { MESSAGE_PLACEHOLDERS } = require('../lib/instagramAlerts');
-const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders } = require('../lib/alertContent');
+const { MAX_TEMPLATE_LENGTH, renderAlertContent, unknownPlaceholders, unmentionableWarning } = require('../lib/alertContent');
 
 const EMBED_COLOR = 0x5865f2;
 const MAX_LISTED = 50;
@@ -60,9 +60,8 @@ async function handleChannel(interaction) {
 	guildSettings.setInstagramAlerts(interaction.guildId, channel.id, pingRole?.id);
 
 	const notes = [`New Instagram posts will go to ${channel}${pingRole ? `, pinging ${pingRole}` : ''}.`];
-	if (pingRole && !pingRole.mentionable && !interaction.guild.members.me.permissions.has(PermissionFlagsBits.MentionEveryone)) {
-		notes.push(`⚠️ ${pingRole} isn't mentionable, so the ping won't notify anyone. Turn on "Allow anyone to @mention this role" in its settings, or give me Mention Everyone.`);
-	}
+	const warning = pingRole && unmentionableWarning(pingRole, channel);
+	if (warning) notes.push(`⚠️ ${warning}`);
 	if (!instagram.isConfigured()) {
 		notes.push("⚠️ Instagram isn't set up on this bot's host yet (INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID), so nothing will post until it is.");
 	}
