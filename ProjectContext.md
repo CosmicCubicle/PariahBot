@@ -246,7 +246,9 @@ connection directly.
   moderator's judgement and permissions apply. Voice is the one area where
   it creates and deletes channels: adding, removing and restoring hubs,
   and closing temp channels. The same rules apply as for `/voice`, through
-  `lib/voiceHubs.js` and `lib/tempVoice.js`.
+  `lib/voiceHubs.js` and `lib/tempVoice.js`. Its Permissions tab edits
+  channel overrides and copies role permissions, for roles only (#100),
+  through `lib/permissionTools.js`, the same code as `/perms`.
 
 ## 7. Documentation lives in the wiki
 
