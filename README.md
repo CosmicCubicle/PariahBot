@@ -106,7 +106,7 @@ Manage Channels alone is neither.
 | `/autodelete` | (Mod) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/logging` | (Admin) The server log, by section (kicks and bans, joins and leaves, messages, server changes): `set` a section's channel, `enable`, `disable`, `status`. |
 | `/alerts` | (Mod) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
-| `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `ping add`/`remove`/`clear`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
 | `/instagram` | (Mod) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/giveaway` | (Mod) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |

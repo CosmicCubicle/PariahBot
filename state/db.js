@@ -63,6 +63,15 @@ db.exec(`
 		PRIMARY KEY (guild_id, role_id)
 	);
 
+	-- Roles pinged with every stream and upload alert (/streamers ping, #98).
+	-- Superseded guild_settings.stream_alert_role_id (a single role); see the
+	-- migration below for existing installs.
+	CREATE TABLE IF NOT EXISTS stream_alert_ping_roles (
+		guild_id TEXT NOT NULL,
+		role_id  TEXT NOT NULL,
+		PRIMARY KEY (guild_id, role_id)
+	);
+
 	CREATE TABLE IF NOT EXISTS hubs (
 		channel_id    TEXT PRIMARY KEY,
 		guild_id      TEXT NOT NULL,
@@ -393,7 +402,8 @@ if (!hasColumn('guild_settings', 'honeypot_action')) {
 
 // /streamers go-live alerts. Same "a set channel *is* on" convention as the
 // captcha above: a null stream_alert_channel_id means alerts are off.
-// stream_alert_role_id is the optional role pinged with each alert.
+// stream_alert_role_id was the optional role pinged with each alert, before
+// stream_alert_ping_roles; it's emptied by the migration at the bottom.
 if (!hasColumn('guild_settings', 'stream_alert_channel_id')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN stream_alert_channel_id TEXT');
 }
@@ -518,6 +528,16 @@ db.exec(`
 	SELECT guild_id, mod_role_id FROM guild_settings WHERE mod_role_id IS NOT NULL;
 
 	UPDATE guild_settings SET mod_role_id = NULL WHERE mod_role_id IS NOT NULL;
+`);
+
+// stream_alert_role_id (a single role) is superseded by stream_alert_ping_roles
+// (#98), the same way and for the same reason as mod_role_id above: copy, then
+// null the column so /streamers ping remove isn't undone by the next restart.
+db.exec(`
+	INSERT OR IGNORE INTO stream_alert_ping_roles (guild_id, role_id)
+	SELECT guild_id, stream_alert_role_id FROM guild_settings WHERE stream_alert_role_id IS NOT NULL;
+
+	UPDATE guild_settings SET stream_alert_role_id = NULL WHERE stream_alert_role_id IS NOT NULL;
 `);
 
 module.exports = db;
