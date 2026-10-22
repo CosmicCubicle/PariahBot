@@ -74,3 +74,37 @@ test('a single role ID still works, for Instagram and RSS', () => {
 test('only the ping roles can notify anyone', () => {
 	assert.deepEqual(pingMentions(['a', 'b']), { parse: [], roles: ['a', 'b'] });
 });
+
+// Just enough role and channel for pingWillNotify: whether the bot has
+// Mention Everyone server-wide, and in a given channel.
+const { PermissionFlagsBits } = require('discord.js');
+const { pingWillNotify, unmentionableWarning } = require('../lib/alertContent');
+
+function fakeRole({ mentionable = false, serverWide = false } = {}) {
+	const has = (flag) => flag === PermissionFlagsBits.MentionEveryone && serverWide;
+	return { mentionable, guild: { members: { me: { permissions: { has } } } }, toString: () => '@Twitch Subscriber' };
+}
+
+function fakeChannel(mentionEveryoneHere) {
+	return { name: 'live-now', permissionsFor: () => ({ has: (flag) => flag === PermissionFlagsBits.MentionEveryone && mentionEveryoneHere }) };
+}
+
+test('a mentionable role always notifies', () => {
+	assert.equal(pingWillNotify(fakeRole({ mentionable: true }), fakeChannel(false)), true);
+});
+
+test('an unmentionable role notifies where the bot has Mention Everyone through the channel alone', () => {
+	assert.equal(pingWillNotify(fakeRole(), fakeChannel(true)), true);
+	assert.equal(unmentionableWarning(fakeRole(), fakeChannel(true)), null);
+});
+
+test('without a channel, only the server-wide permission counts', () => {
+	assert.equal(pingWillNotify(fakeRole({ serverWide: true })), true);
+	assert.equal(pingWillNotify(fakeRole()), false);
+});
+
+test('the warning names the channel to fix it in, and says @everyone is never pinged', () => {
+	const warning = unmentionableWarning(fakeRole(), fakeChannel(false));
+	assert.match(warning, /in #live-now/);
+	assert.match(warning, /never @everyone/);
+});

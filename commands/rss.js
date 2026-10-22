@@ -1,8 +1,8 @@
-const { SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const feedStore = require('../state/rssFeeds');
 const { fetchFeed } = require('../lib/rss');
 const { MAX_FEEDS_PER_GUILD, postItem, followFeed } = require('../lib/rssAlerts');
-const { MAX_TEMPLATE_LENGTH } = require('../lib/alertContent');
+const { MAX_TEMPLATE_LENGTH, unmentionableWarning } = require('../lib/alertContent');
 const { isMod, requireMod } = require('../lib/permissions');
 
 const EMBED_COLOR = 0x5865f2;
@@ -39,9 +39,8 @@ async function handleAdd(interaction) {
 		? `It has ${parsed.items.length} item${parsed.items.length === 1 ? '' : 's'} already; those won't be posted. Use \`/rss test\` to see how a post looks.`
 		: "It doesn't list any items yet. The first one will be posted when it appears.");
 	lines.push('Feeds are checked every 10 minutes.');
-	if (pingRole && !pingRole.mentionable && !interaction.guild.members.me.permissions.has(PermissionFlagsBits.MentionEveryone)) {
-		lines.push(`⚠️ ${pingRole} isn't mentionable, so the ping won't notify anyone. Turn on "Allow anyone to @mention this role" in its settings, or give me Mention Everyone.`);
-	}
+	const warning = pingRole && unmentionableWarning(pingRole, channel);
+	if (warning) lines.push(`⚠️ ${warning}`);
 	await interaction.editReply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
 }
 
