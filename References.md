@@ -59,6 +59,18 @@ from them, it's on purpose.
 
 - **riking/AutoDelete** is the model for `/autodelete`: rolling deletion by
   message count and/or age.
+- **Member Count** (https://membercount.net, docs at
+  https://github.com/lieuweberg/membercount.net) is the model for
+  `/membercount`. **Its bot is closed source — that repository is the website
+  and docs**, which is still where the useful detail is. Two things were taken
+  straight from it: counters are **voice** channels, so a member sees the name
+  but cannot open it, and they refresh on a **timer, not on events** — its FAQ
+  records being forced off instant updates by rate limits and settling on 20
+  minutes. Its online/offline counters are premium because they need the
+  privileged Presence intent; here that is an opt-in flag instead
+  (ProjectContext.md § 5). Left out: its memberlist dump, prefix command and
+  per-counter on/off, which PariahBot covers with add/remove and `/setup
+  feature`.
 - **RiskyMH/honeypot** is the model for `/security honeypot`. Its 13
   experimental options were left out on purpose.
 

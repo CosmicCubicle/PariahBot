@@ -322,6 +322,21 @@ db.exec(`
 		PRIMARY KEY (guild_id, section)
 	);
 
+	-- Member count channels (#90): a voice channel whose NAME holds a count,
+	-- rewritten on a timer. One row per counter channel.
+	--
+	-- role_id is set only for the 'role' type (members holding one role) and
+	-- null for every other type. name_template holds {count}, replaced with the
+	-- number — the channel name is the whole output, so there is nowhere else to
+	-- put it.
+	CREATE TABLE IF NOT EXISTS member_counters (
+		channel_id    TEXT PRIMARY KEY,
+		guild_id      TEXT NOT NULL,
+		type          TEXT NOT NULL,
+		role_id       TEXT,
+		name_template TEXT NOT NULL
+	);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id     TEXT NOT NULL,

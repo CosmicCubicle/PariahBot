@@ -10,6 +10,7 @@ const { syncAll: syncBannedWords } = require('../lib/bannedWords');
 const { scheduleAllTempBans } = require('../lib/moderation');
 const { startPoller: startRssAlerts } = require('../lib/rssAlerts');
 const { startDashboard } = require('../lib/dashboard/server');
+const { startRefreshTimer: startMemberCounters } = require('../lib/memberCounters');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -44,6 +45,9 @@ module.exports = {
 		startInstagramAlerts(client);
 		startRssAlerts(client);
 		startDashboard(client);
+		// Sweeps once now so counters are right after a restart, then every 20
+		// minutes — Discord rate-limits channel renames (lib/memberCounters.js).
+		startMemberCounters(client);
 		await syncBannedWords(client);
 	},
 };

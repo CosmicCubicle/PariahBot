@@ -12,6 +12,9 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 
 ## Features
 
+- **Member count channels** — voice channels whose name shows a live count:
+  members, humans, bots, roles, channels, or the members in one role. Renamed
+  every 20 minutes, because Discord rate-limits channel renames.
 - **Switchable feature sets** — an admin can switch any feature set off for
   their server with `/setup feature`, or from the dashboard. Settings are kept,
   anything already running finishes, and `/help` marks what is off and how to
@@ -107,6 +110,7 @@ Manage Channels alone is neither.
 | `/bannedwords` | Banned words via Discord AutoMod. (Admin): `enable`, `disable`, `list add`/`remove`. (Mod): `word add`/`remove`, `status`. |
 | `/autodelete` | (Mod) Per-channel message auto-deletion: `set`, `disable`, `status`. |
 | `/logging` | (Admin) The server log, by section (kicks and bans, joins and leaves, messages, server changes): `set` a section's channel, `enable`, `disable`, `status`. |
+| `/membercount` | (Admin) Voice channels whose name shows a live count: `add`, `rename`, `remove`, `list`. Updated every 20 minutes. |
 | `/alerts` | (Mod) Where admin alerts go: `channel`, `add-recipient`, `remove-recipient`, `remove-default`, `restore-default`, `test`, `status`. |
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `ping add`/`remove`/`clear`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |

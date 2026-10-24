@@ -17,6 +17,7 @@ const ALLOWED = {
 	'lib/voiceHubs.js': 'createHub from /voice create, and restoreHub from the dead-hub Restore button',
 	'commands/security.js': 'from /security ... setup — running setup is the ask, and the reply always says what was created',
 	'events/voiceStateUpdate.js': 'a temporary channel, from a member joining a hub an admin created',
+	'lib/memberCounters.js': 'from /membercount add — the admin asked for a counter, and the reply names the channel it made',
 };
 
 const ROOT = path.resolve(__dirname, '..');
