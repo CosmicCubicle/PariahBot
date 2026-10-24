@@ -165,6 +165,15 @@ For a long time it used none. It now asks for **one, Guild Members**, because
 one feature has no other source. The intents and what each is for are listed
 in [lib/intents.js](lib/intents.js).
 
+**Guild Presences, only when asked for (#90).** The online and offline member
+count channels are the only thing that can answer "how many are online", and
+nothing else needs it. Requesting it always would have refused the login on
+every existing install until each host switched it on, which is what adding
+Guild Members did. So it follows the Message Content pattern instead: the bot
+asks for it only when `MEMBER_COUNT_PRESENCE` is set, and without it those two
+counter types are unavailable and `/membercount` says why. Every other counter
+works with no extra intent.
+
 **Guild Members, always (#81).** The server log's joins and leaves can only
 come from `guildMemberAdd`/`guildMemberRemove`. Kicks and bans are in the
 audit log, but someone joining, or leaving on their own, is in nothing a
