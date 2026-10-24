@@ -187,3 +187,130 @@ test('every counter type is declared with a label and a default template', () =>
 		assert.equal(typeof spec.count, 'function');
 	}
 });
+
+// --- The member cache (#105) ---------------------------------------------------
+
+// The mocks above hand `filter` a populated array, which is why they passed
+// while Humans reported 2 in a real server. This models the real object: the
+// cache starts with only the members the bot happens to have seen, and is
+// filled by fetch(). A test that can't express an empty cache can't catch this.
+function mockCacheGuild(id, { seen = 1, actual = 50, bots = 2, fetchFails = false } = {}) {
+	const guild = {
+		id,
+		memberCount: actual + bots,
+		fetches: [],
+		renames: [],
+		roles: { cache: new Map([['everyone', { id: 'everyone' }]]) },
+		channels: { cache: new Map() },
+	};
+
+	let loaded = seen;
+	const asArray = () => {
+		const members = [];
+		for (let i = 0; i < Math.min(loaded, actual); i += 1) members.push({ user: { bot: false }, presence: null });
+		if (loaded > actual) for (let i = 0; i < bots; i += 1) members.push({ user: { bot: true }, presence: null });
+		return members;
+	};
+
+	guild.members = {
+		cache: { filter: (fn) => ({ size: asArray().filter(fn).length }) },
+		async fetch(options) {
+			guild.fetches.push(options);
+			if (fetchFails) throw new Error('Members did not arrive within 120 seconds.');
+			loaded = actual + bots;
+			return guild.members.cache;
+		},
+	};
+	return guild;
+}
+
+function counterChannel(guild, channelId) {
+	guild.channels.cache.set(channelId, {
+		name: 'placeholder',
+		async setName(name) { guild.renames.push(name); this.name = name; },
+	});
+}
+
+test('a sweep fills the member cache before counting humans', async () => {
+	const guild = mockCacheGuild('g-cache', { seen: 2, actual: 50, bots: 3 });
+	counterChannel(guild, 'c-humans');
+	store.addCounter({ channelId: 'c-humans', guildId: 'g-cache', type: 'users', nameTemplate: 'Humans: {count}' });
+
+	await counters.refreshAll({ guilds: { cache: new Map([['g-cache', guild]]) } });
+
+	assert.equal(guild.fetches.length, 1, 'the cache has to be fetched, not assumed');
+	// The bug: without the fetch this was 'Humans: 2'.
+	assert.deepEqual(guild.renames, ['Humans: 50']);
+});
+
+test('the cache is fetched once per guild, not once per counter', async () => {
+	const guild = mockCacheGuild('g-many', { seen: 1, actual: 40, bots: 4 });
+	for (const [id, type] of [['c1', 'users'], ['c2', 'bots'], ['c3', 'members']]) {
+		counterChannel(guild, id);
+		store.addCounter({ channelId: id, guildId: 'g-many', type, nameTemplate: '{count}' });
+	}
+
+	await counters.refreshAll({ guilds: { cache: new Map([['g-many', guild]]) } });
+
+	assert.equal(guild.fetches.length, 1, 'three counters, one fetch');
+	assert.deepEqual(guild.renames.sort(), ['4', '40', '44'], 'bots, humans, and total');
+});
+
+test('a guild with no cache-reading counters is never fetched', async () => {
+	// members/roles/channels all come from data Discord already sent, so a
+	// server using only those should cost no extra API call.
+	const guild = mockCacheGuild('g-cheap', { seen: 1, actual: 30, bots: 2 });
+	counterChannel(guild, 'c-total');
+	counterChannel(guild, 'c-roles');
+	store.addCounter({ channelId: 'c-total', guildId: 'g-cheap', type: 'members', nameTemplate: '{count}' });
+	store.addCounter({ channelId: 'c-roles', guildId: 'g-cheap', type: 'roles', nameTemplate: 'R{count}' });
+
+	await counters.refreshAll({ guilds: { cache: new Map([['g-cheap', guild]]) } });
+
+	assert.deepEqual(guild.fetches, [], 'no counter here reads the member cache');
+	assert.deepEqual(guild.renames.sort(), ['32', 'R0']);
+});
+
+test('withPresences follows the presence flag', async () => {
+	// Asking for presences without the intent is rejected by Discord, so the
+	// option has to track the flag rather than always being true.
+	const guild = mockCacheGuild('g-presence', { seen: 1, actual: 10, bots: 1 });
+	counterChannel(guild, 'c-humans2');
+	store.addCounter({ channelId: 'c-humans2', guildId: 'g-presence', type: 'users', nameTemplate: '{count}' });
+
+	await counters.refreshAll({ guilds: { cache: new Map([['g-presence', guild]]) } });
+
+	assert.equal(guild.fetches[0].withPresences, false, 'MEMBER_COUNT_PRESENCE is unset here');
+});
+
+test('a failed fetch leaves the names alone rather than writing a short count', async () => {
+	// Discord times the member chunk out on large guilds. Writing the partial
+	// cache then would publish a wrong number and look authoritative.
+	const guild = mockCacheGuild('g-fail', { seen: 2, actual: 500, bots: 5, fetchFails: true });
+	counterChannel(guild, 'c-fail');
+	store.addCounter({ channelId: 'c-fail', guildId: 'g-fail', type: 'users', nameTemplate: 'Humans: {count}' });
+
+	const warnings = [];
+	const original = console.error;
+	console.error = (...args) => warnings.push(args.join(' '));
+	try {
+		await counters.refreshAll({ guilds: { cache: new Map([['g-fail', guild]]) } });
+	} finally {
+		console.error = original;
+	}
+
+	assert.equal(guild.fetches.length, 1);
+	assert.deepEqual(guild.renames, [], 'nothing written');
+	assert.ok(warnings.some((line) => /couldn't fetch members/i.test(line)), 'and it says so');
+});
+
+test('every cache-reading type is flagged as such', () => {
+	// The flag is what decides whether a fetch happens, so a new type that
+	// reads the cache and forgets it would reintroduce #105 silently.
+	for (const key of ['users', 'bots', 'role', 'online', 'offline']) {
+		assert.equal(counters.COUNTER_TYPES[key].needsMemberCache, true, `${key} reads guild.members.cache`);
+	}
+	for (const key of ['members', 'roles', 'channels']) {
+		assert.ok(!counters.COUNTER_TYPES[key].needsMemberCache, `${key} does not need a fetch`);
+	}
+});
