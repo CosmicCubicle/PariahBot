@@ -63,6 +63,10 @@ async function handleAdd(interaction) {
 	// Discord's three-second window comfortably allows.
 	await interaction.deferReply({ ephemeral: true });
 
+	// Fill the member cache first when this type reads it (#105), or the
+	// channel gets created showing a count off by most of the server.
+	if (spec.needsMemberCache) await counters.ensureMemberCache(interaction.guild);
+
 	const count = counters.countFor(interaction.guild, { type, roleId: role?.id ?? null });
 	const firstName = counters.renderName(template, count ?? 0);
 	const { channel, created } = await resolveChannel(interaction, firstName);
@@ -129,7 +133,12 @@ async function handleRename(interaction) {
 	}
 
 	await interaction.deferReply({ ephemeral: true });
-	await counters.refreshCounter(interaction.client, counterStore.getCounter(channel.id)).catch(() => null);
+
+	// Re-renders straight away, so it needs the member cache filled for the
+	// types that read it (#105).
+	const counter = counterStore.getCounter(channel.id);
+	if (counters.needsMemberCache([counter])) await counters.ensureMemberCache(interaction.guild);
+	await counters.refreshCounter(interaction.client, counter).catch(() => null);
 
 	await interaction.editReply({ content: `${channel} now shows \`${template}\`.` });
 }
@@ -138,6 +147,13 @@ async function handleList(interaction) {
 	requireAdmin(interaction);
 
 	const rows = counterStore.listForGuild(interaction.guildId);
+
+	// Shows live values, so it needs the same member cache the counters do
+	// (#105) — otherwise this reports the undercount back as confirmation.
+	if (counters.needsMemberCache(rows)) {
+		await interaction.deferReply({ ephemeral: true });
+		await counters.ensureMemberCache(interaction.guild);
+	}
 	const lines = rows.map((counter) => {
 		const spec = counters.COUNTER_TYPES[counter.type];
 		const label = spec?.label ?? counter.type;
@@ -153,7 +169,10 @@ async function handleList(interaction) {
 		.setDescription(lines.join('\n') || 'None yet — add one with `/membercount add`.')
 		.setFooter({ text: `Updated every ${counters.REFRESH_INTERVAL_MS / 60000} minutes. ${rows.length}/${counters.MAX_COUNTERS_PER_GUILD} used.` });
 
-	await interaction.reply({ embeds: [embed], ephemeral: true });
+	// Deferred above only when the member cache had to be fetched, so both
+	// paths are possible here.
+	if (interaction.deferred) await interaction.editReply({ embeds: [embed] });
+	else await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 const HANDLERS = { add: handleAdd, remove: handleRemove, rename: handleRename, list: handleList };
