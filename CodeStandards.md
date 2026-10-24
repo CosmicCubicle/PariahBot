@@ -468,6 +468,18 @@ Code that doesn't meet the standards above, and why. Don't copy it into new
 code. If you find more, add it here, and fix it when you're next working in
 that area.
 
+- **`lockCounterChannel` in [lib/memberCounters.js](lib/memberCounters.js)
+  restricts before it grants** (#107). It denies `Connect` to `@everyone` and
+  only then gives the bot its own overwrite, so a failure in between leaves the
+  bot locked out of a channel it just created — seen in production, where the
+  counter then never renamed. **Grant yourself access first, then restrict
+  others**, the way `/vc lock` already does. Its failure is also reported as a
+  soft warning about members being able to join, when the real consequence is
+  that the counter will never update.
+  Related: `refreshCounter` treats only `50013 Missing Permissions` as a clean
+  skip, so `50001 Missing Access` logs a bare message with no guidance. The two
+  mean different things — see the wiki's Troubleshooting page.
+
 - **`customId` formats** are mixed, in **five** different ways — this list is
   exhaustive as of #66, so don't assume a sixth is sanctioned:
 
