@@ -246,6 +246,11 @@ entire mystery.
 - **An explicit command or button.** `/voice create`, `/alerts
   restore-default`, `/security ... setup`, the dead-hub **Restore** button.
   Running it is the ask.
+- **A member opening a ticket, for its thread.** Pressing **Open a ticket**
+  or running `/ticket open` creates a private thread in the channel an admin
+  chose with `/ticket setup`. It isn't a channel, but it's still something the
+  bot makes in someone's server, so thread creation is pinned by the same
+  test (`THREADS_ALLOWED`).
 - **A hub, for the channels it spawns.** Temporary voice channels are created
   when a member joins a hub, with no admin present — the admin consented by
   creating the hub, and spawning channels is the whole feature.

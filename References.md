@@ -71,6 +71,15 @@ from them, it's on purpose.
   (ProjectContext.md § 5). Left out: its memberlist dump, prefix command and
   per-counter on/off, which PariahBot covers with add/remove and `/setup
   feature`.
+- **open-discord-bots/open-ticket** (https://github.com/open-discord-bots/open-ticket)
+  is the model for `/ticket` (#89). Taken from it: a panel message with a
+  button, a short form before the ticket opens, claiming, closing and
+  reopening, adding and removing participants, and a log of ticket events.
+  Different on purpose: tickets are **private threads** in one channel rather
+  than a channel each, so the bot never creates channels for them
+  (WorkingAgreements.md § 7) and the server's channel list doesn't grow with
+  every ticket. Left out of the first version: transcripts, per-member ticket
+  limits, a blacklist, priorities, ticket types and auto-close.
 - **RiskyMH/honeypot** is the model for `/security honeypot`. Its 13
   experimental options were left out on purpose.
 

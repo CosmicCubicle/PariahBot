@@ -18,6 +18,7 @@ several single-purpose bots with one:
 - anti-spam (captcha and honeypot)
 - banned words
 - moderation (kick, ban, temporary ban, timeout)
+- support tickets
 - giveaways
 - activity levels
 - Twitch and YouTube alerts

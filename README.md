@@ -2,7 +2,7 @@
 
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
-auto-deletion, anti-spam, banned words, moderation, giveaways, activity levels, Twitch and YouTube
+auto-deletion, anti-spam, banned words, moderation, support tickets, giveaways, activity levels, Twitch and YouTube
 alerts, Instagram post alerts, RSS feeds, a server log, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
@@ -27,6 +27,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Permission tools** — `/perms` reports who can see and post in a channel or category, hides or shows it to a role or member, toggles who can speak there, and (admins) copies one role's permissions and channel access to another, with a preview first. Staff can't be restricted by mods, and the bot never locks itself out. Also on the dashboard's Permissions tab, for roles.
 - **Banned words** — blocks messages containing words from ready-made lists (Discord's profanity, sexual content and slur lists, plus scams, harassment and drugs) and the server's own custom words, using Discord AutoMod, so nobody sees them. Each block is reported through the admin alerts. Needs the bot to have Manage Server.
 - **Message auto-deletion** — per channel, on a rolling basis: each message is deleted after a set age, or once a set number of newer messages exist, whichever comes first. Pinned messages are never deleted.
+- **Support tickets** — members open a numbered ticket (`#0001`, `#0002`, …) from a button or `/ticket open`, and get a private thread with the server's mod and admin roles. Staff can claim, close, reopen and add people to tickets, and every ticket stays in `/ticket list`. An optional log channel records who opened, claimed and closed each one.
 - **Giveaways** — timed giveaways that members enter with a button, with winners drawn automatically when they end.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
 - **Twitch and YouTube alerts** — members with the streamer role link their own Twitch or YouTube channel, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role and with a custom message, when any of them goes live, and when a YouTube channel uploads a new video. Each platform needs its API credentials in `hom.env`.
@@ -115,6 +116,7 @@ Manage Channels alone is neither.
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `ping add`/`remove`/`clear`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
 | `/instagram` | (Mod) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/ticket` | Support tickets as private threads. Everyone: `open`, and `close` on their own ticket. (Mod): `claim`, `unclaim`, `add`, `remove`, `close`, `reopen`, `list`. (Admin): `setup` the panel and log channel, `disable`. |
 | `/giveaway` | (Mod) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:
@@ -128,7 +130,7 @@ Add new command modules to `commands/` — they're picked up automatically. Run
 | Path | Contents |
 | --- | --- |
 | `commands/` | One module per slash command; loaded automatically at startup. |
-| `events/` | Discord gateway event handlers (interactions, messages, voice state, members, audit log, ready). |
+| `events/` | Discord gateway event handlers (interactions, messages, voice state, members, threads, audit log, ready). |
 | `lib/` | Feature logic shared between commands and events. |
 | `state/` | SQLite access — `db.js` owns the schema, one module per domain. |
 | `logging/` | Command audit logging. |

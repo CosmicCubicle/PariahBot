@@ -256,7 +256,7 @@ scoped to `interaction.guildId`.
   - **Admin** (`isAdmin`, `requireAdmin`): Discord's Administrator
     permission, or an admin role (`/setup admin-role`). Admin-only:
     `/setup`, `/security`, the admin dashboard, `/mod config` and
-    `remove-case`, `/bannedwords` on/off and lists, and `/perms copy`. These are things
+    `remove-case`, `/bannedwords` on/off and lists, `/perms copy`, and `/ticket setup` and `disable`. These are things
     that configure the server, or erase records of staff actions.
   - **Mod** (`isMod`, `requireMod`): a mod role (`/setup mod-role`), or any
     admin. Every other staff command.

@@ -52,6 +52,22 @@ test('every allowed creation site still exists', () => {
 	}
 });
 
+// Threads aren't in the channel list, but they're still something the bot
+// makes in someone's server, so the same question applies: who asked?
+const THREADS_ALLOWED = {
+	'lib/tickets.js': 'a private ticket thread, from a member pressing "Open a ticket" or running /ticket open',
+};
+
+test('no thread is created outside the paths a person explicitly asked for', () => {
+	const found = sourceFiles().filter((file) => /threads\.create\s*\(/.test(fs.readFileSync(path.join(ROOT, file), 'utf8')));
+
+	assert.deepEqual(found.filter((file) => !Object.hasOwn(THREADS_ALLOWED, file)), [],
+		'new thread creation — if a person asked for it, add it to THREADS_ALLOWED with the ask named');
+	for (const file of Object.keys(THREADS_ALLOWED)) {
+		assert.ok(found.includes(file), `${file} no longer creates a thread — remove it from THREADS_ALLOWED`);
+	}
+});
+
 test('nothing creates a channel from a startup or join sweep', () => {
 	// The specific shape #92 removed: creation reached from events/ready.js or a
 	// GuildCreate handler, where no one is present to ask.
