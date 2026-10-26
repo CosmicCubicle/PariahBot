@@ -337,6 +337,41 @@ db.exec(`
 		name_template TEXT NOT NULL
 	);
 
+	-- Support tickets (#89): one row per guild that has run /ticket setup.
+	-- A set panel_channel_id *is* "tickets are on" — every ticket is a private
+	-- thread in that channel, and /ticket disable clears it. panel_message_id
+	-- is the posted "Open a ticket" message, so re-running setup refreshes it
+	-- instead of posting a second one. log_channel_id is optional.
+	CREATE TABLE IF NOT EXISTS ticket_config (
+		guild_id         TEXT PRIMARY KEY,
+		panel_channel_id TEXT,
+		panel_message_id TEXT,
+		log_channel_id   TEXT
+	);
+
+	-- One row per ticket, kept after it closes — it's the server's record.
+	-- number counts up per guild and is what staff and members refer to;
+	-- it's allocated as MAX + 1 inside the insert (see state/tickets.js).
+	-- thread_id is null for the moment between the row being written and its
+	-- thread being created, because the thread's name needs the number.
+	-- status is 'open' or 'closed'. claimed_by is the staff member handling
+	-- it, null when unclaimed.
+	CREATE TABLE IF NOT EXISTS tickets (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		guild_id   TEXT NOT NULL,
+		number     INTEGER NOT NULL,
+		thread_id  TEXT UNIQUE,
+		opener_id  TEXT NOT NULL,
+		subject    TEXT NOT NULL,
+		status     TEXT NOT NULL DEFAULT 'open',
+		claimed_by TEXT,
+		created_at TEXT NOT NULL,
+		closed_at  TEXT,
+		closed_by  TEXT,
+		UNIQUE (guild_id, number)
+	);
+	CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (guild_id, status, number);
+
 	CREATE TABLE IF NOT EXISTS giveaway_entries (
 		giveaway_id TEXT NOT NULL,
 		user_id     TEXT NOT NULL,
