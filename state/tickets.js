@@ -18,6 +18,7 @@ function mapTicket(row) {
 		id: row.id,
 		guildId: row.guild_id,
 		number: row.number,
+		channelId: row.channel_id,
 		threadId: row.thread_id,
 		openerId: row.opener_id,
 		subject: row.subject,
@@ -50,6 +51,13 @@ function setConfig(guildId, { panelChannelId, panelMessageId, logChannelId }) {
 	upsertConfigStmt.run({ guildId, panelChannelId, panelMessageId, logChannelId });
 }
 
+// Stops logging, keeping the panel. False when no log channel was set.
+const clearLogChannelStmt = db.prepare('UPDATE ticket_config SET log_channel_id = NULL WHERE guild_id = ? AND log_channel_id IS NOT NULL');
+
+function clearLogChannel(guildId) {
+	return clearLogChannelStmt.run(guildId).changes > 0;
+}
+
 // Turns tickets off without touching the tickets themselves: open ones still
 // close normally, and their history stays for /ticket list.
 const clearConfigStmt = db.prepare(`
@@ -65,23 +73,36 @@ function clearConfig(guildId) {
 
 const nextNumberStmt = db.prepare('SELECT COALESCE(MAX(number), 0) + 1 AS next FROM tickets WHERE guild_id = ?');
 const insertTicketStmt = db.prepare(`
-	INSERT INTO tickets (guild_id, number, opener_id, subject, created_at)
-	VALUES (@guildId, @number, @openerId, @subject, @createdAt)
+	INSERT INTO tickets (guild_id, number, channel_id, opener_id, subject, created_at)
+	VALUES (@guildId, @number, @channelId, @openerId, @subject, @createdAt)
 `);
 
 // Reading MAX and inserting in one transaction is what stops two members
 // pressing the button at the same moment from getting the same number —
 // better-sqlite3 runs it synchronously, so nothing can interleave. The
 // UNIQUE (guild_id, number) constraint backs that up.
-const createTicketTx = db.transaction((guildId, openerId, subject) => {
+const createTicketTx = db.transaction(({ guildId, channelId, openerId, subject }) => {
 	const { next } = nextNumberStmt.get(guildId);
 	const createdAt = new Date().toISOString();
-	const { lastInsertRowid } = insertTicketStmt.run({ guildId, number: next, openerId, subject, createdAt });
-	return { id: Number(lastInsertRowid), guildId, number: next, threadId: null, openerId, subject, status: 'open', claimedBy: null, createdAt, closedAt: null, closedBy: null };
+	const { lastInsertRowid } = insertTicketStmt.run({ guildId, number: next, channelId, openerId, subject, createdAt });
+	return {
+		id: Number(lastInsertRowid),
+		guildId,
+		number: next,
+		channelId,
+		threadId: null,
+		openerId,
+		subject,
+		status: 'open',
+		claimedBy: null,
+		createdAt,
+		closedAt: null,
+		closedBy: null,
+	};
 });
 
-function createTicket(guildId, openerId, subject) {
-	return createTicketTx(guildId, openerId, subject);
+function createTicket(guildId, channelId, openerId, subject) {
+	return createTicketTx({ guildId, channelId, openerId, subject });
 }
 
 const attachThreadStmt = db.prepare('UPDATE tickets SET thread_id = ? WHERE id = ? AND guild_id = ?');
@@ -96,6 +117,24 @@ const deleteUnstartedStmt = db.prepare('DELETE FROM tickets WHERE id = ? AND gui
 
 function discardUnstarted(id, guildId) {
 	return deleteUnstartedStmt.run(id, guildId).changes > 0;
+}
+
+// For a ticket whose thread was created but couldn't be finished, and has
+// since been deleted again. threadId is in the WHERE so this can only ever
+// remove the one attempt it was called for.
+const deleteFailedStmt = db.prepare('DELETE FROM tickets WHERE id = ? AND guild_id = ? AND thread_id = ?');
+
+function discardFailed(id, guildId, threadId) {
+	return deleteFailedStmt.run(id, guildId, threadId).changes > 0;
+}
+
+// Rows the bot was creating a thread for when it stopped. Every guild at
+// once, at startup. Only rows older than the cutoff, so a ticket being opened
+// right now is never caught. Returns how many were removed.
+const deleteStaleUnstartedStmt = db.prepare('DELETE FROM tickets WHERE thread_id IS NULL AND created_at < ?');
+
+function discardStaleUnstarted(cutoffIso) {
+	return deleteStaleUnstartedStmt.run(cutoffIso).changes;
 }
 
 // guild_id is in the WHERE on both lookups. The thread one is always the
@@ -120,6 +159,14 @@ const listAllStmt = db.prepare('SELECT * FROM tickets WHERE guild_id = ? ORDER B
 function listTickets(guildId, status, limit) {
 	const rows = status ? listByStatusStmt.all(guildId, status, limit) : listAllStmt.all(guildId, limit);
 	return rows.map(mapTicket);
+}
+
+// Open tickets whose thread lives in a channel, for when that channel is
+// deleted and takes every thread in it along.
+const listOpenInChannelStmt = db.prepare("SELECT * FROM tickets WHERE channel_id = ? AND guild_id = ? AND status = 'open' ORDER BY number");
+
+function listOpenInChannel(channelId, guildId) {
+	return listOpenInChannelStmt.all(channelId, guildId).map(mapTicket);
 }
 
 const countOpenStmt = db.prepare("SELECT COUNT(*) AS count FROM tickets WHERE guild_id = ? AND status = 'open'");
@@ -151,6 +198,14 @@ function reopenTicket(id, guildId) {
 	return reopenStmt.run(id, guildId).changes > 0;
 }
 
+// Only succeeds while nobody holds it, so two staff pressing Claim at the
+// same moment can't both be told they have it.
+const claimStmt = db.prepare("UPDATE tickets SET claimed_by = ? WHERE id = ? AND guild_id = ? AND status = 'open' AND claimed_by IS NULL");
+
+function claimTicket(id, guildId, userId) {
+	return claimStmt.run(userId, id, guildId).changes > 0;
+}
+
 const setClaimStmt = db.prepare('UPDATE tickets SET claimed_by = ? WHERE id = ? AND guild_id = ?');
 
 // userId null unclaims.
@@ -162,14 +217,19 @@ module.exports = {
 	getConfig,
 	setConfig,
 	clearConfig,
+	clearLogChannel,
 	createTicket,
 	attachThread,
 	discardUnstarted,
+	discardFailed,
+	discardStaleUnstarted,
 	getByThread,
 	getByNumber,
 	listTickets,
+	listOpenInChannel,
 	countOpen,
 	closeTicket,
 	reopenTicket,
+	claimTicket,
 	setClaim,
 };

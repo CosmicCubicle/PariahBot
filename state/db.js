@@ -353,13 +353,16 @@ db.exec(`
 	-- number counts up per guild and is what staff and members refer to;
 	-- it's allocated as MAX + 1 inside the insert (see state/tickets.js).
 	-- thread_id is null for the moment between the row being written and its
-	-- thread being created, because the thread's name needs the number.
-	-- status is 'open' or 'closed'. claimed_by is the staff member handling
-	-- it, null when unclaimed.
+	-- thread being created, because the thread's name needs the number; a row
+	-- still without one at startup is discarded (lib/tickets.js). channel_id is
+	-- the channel the thread lives in, so deleting that channel can close its
+	-- tickets — Discord sends no threadDelete for each one. status is 'open' or
+	-- 'closed'. claimed_by is the staff member handling it, null when unclaimed.
 	CREATE TABLE IF NOT EXISTS tickets (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		guild_id   TEXT NOT NULL,
 		number     INTEGER NOT NULL,
+		channel_id TEXT NOT NULL,
 		thread_id  TEXT UNIQUE,
 		opener_id  TEXT NOT NULL,
 		subject    TEXT NOT NULL,

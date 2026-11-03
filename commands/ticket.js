@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ChannelType, EmbedBuilder } = require('discord.js');
 const ticketStore = require('../state/tickets');
 const tickets = require('../lib/tickets');
+const features = require('../lib/features');
 const { requireAdmin, requireMod, staffRoleIds } = require('../lib/permissions');
 
 const LIST_LIMIT = 25;
@@ -22,6 +23,7 @@ function resolveTicket(interaction) {
 
 async function handleSetup(interaction) {
 	requireAdmin(interaction);
+	features.requireEnabled(interaction, 'tickets');
 
 	const channel = interaction.options.getChannel('channel');
 	const logChannel = interaction.options.getChannel('log-channel');
@@ -46,10 +48,13 @@ async function handleSetup(interaction) {
 	}
 	panel ??= await channel.send(tickets.buildPanel());
 
+	// Leaving log-channel: out keeps the one already set, rather than quietly
+	// switching logging off. /ticket clear-log is how to stop it.
+	const logChannelId = logChannel?.id ?? previous.logChannelId ?? null;
 	ticketStore.setConfig(interaction.guildId, {
 		panelChannelId: channel.id,
 		panelMessageId: panel.id,
-		logChannelId: logChannel?.id ?? null,
+		logChannelId,
 	});
 
 	const roleIds = staffRoleIds(interaction.guildId);
@@ -60,8 +65,8 @@ async function handleSetup(interaction) {
 			roleIds.length
 				? `Members of ${roleIds.map((id) => `<@&${id}>`).join(', ')} are added to every ticket.`
 				: '**No mod or admin roles are set**, so only Administrators will see tickets. Add one with `/setup mod-role`.',
-			logChannel
-				? `Ticket events are logged in ${logChannel}.`
+			logChannelId
+				? `Ticket events are logged in <#${logChannelId}>. Stop that with \`/ticket clear-log\`.`
 				: 'No log channel. Pass `log-channel:` to record who opened, claimed and closed each ticket.',
 		].join('\n'),
 		allowedMentions: { parse: [] },
@@ -75,18 +80,29 @@ async function handleDisable(interaction) {
 	if (!ticketStore.clearConfig(interaction.guildId)) {
 		throw new Error('Tickets aren\'t set up in this server, so there\'s nothing to turn off.');
 	}
+	await interaction.deferReply({ ephemeral: true });
 
 	const channel = await interaction.guild.channels.fetch(panelChannelId).catch(() => null);
 	const panel = await channel?.messages.fetch(panelMessageId).catch(() => null);
 	await panel?.delete().catch(() => null);
 
 	const open = ticketStore.countOpen(interaction.guildId);
-	await interaction.reply({
+	await interaction.editReply({
 		content: [
 			'Tickets are off, and the "Open a ticket" panel was removed.',
 			open ? `The ${open} ticket${open === 1 ? '' : 's'} still open keep working and can be closed as usual.` : null,
 			'Turn them back on with `/ticket setup`.',
 		].filter(Boolean).join(' '),
+	});
+}
+
+async function handleClearLog(interaction) {
+	requireAdmin(interaction);
+	if (!ticketStore.clearLogChannel(interaction.guildId)) {
+		throw new Error('No ticket log channel is set, so there\'s nothing to stop.');
+	}
+	await interaction.reply({
+		content: 'Ticket events are no longer logged. Pass `log-channel:` to `/ticket setup` to start again.',
 		ephemeral: true,
 	});
 }
@@ -115,51 +131,55 @@ async function handleUnclaim(interaction) {
 	const ticket = resolveTicket(interaction);
 	tickets.requireOpen(ticket);
 	if (!ticket.claimedBy) throw new Error(`Ticket ${tickets.formatNumber(ticket.number)} isn't claimed.`);
+	await interaction.deferReply({ ephemeral: true });
 
+	const thread = await tickets.fetchThread(interaction.guild, ticket);
+	if (!thread) throw new Error(tickets.threadGoneMessage(ticket));
 	ticketStore.setClaim(ticket.id, ticket.guildId, null);
-	const thread = await tickets.fetchThread(interaction.guild, ticket);
-	await thread?.send({
-		content: `${interaction.user} released this ticket from <@${ticket.claimedBy}>. Any staff member can claim it.`,
-		allowedMentions: { parse: [] },
-	}).catch(() => null);
-	await tickets.postLog(interaction.guild, tickets.logEmbed(ticket, tickets.INFO_COLOR, 'unclaimed', [
-		`**Released by:** ${interaction.user} (was <@${ticket.claimedBy}>)`,
-	]));
-	await interaction.reply({ content: `Ticket ${tickets.formatNumber(ticket.number)} is no longer claimed.`, ephemeral: true });
-}
 
-async function requireOpenThread(interaction, ticket) {
-	tickets.requireOpen(ticket);
-	const thread = await tickets.fetchThread(interaction.guild, ticket);
-	if (!thread) throw new Error(`Ticket ${tickets.formatNumber(ticket.number)}'s thread no longer exists.`);
-	return thread;
+	await Promise.all([
+		thread.send({
+			content: `${interaction.user} released this ticket from <@${ticket.claimedBy}>. Any staff member can claim it.`,
+			allowedMentions: { parse: [] },
+		}).catch(() => null),
+		tickets.postLog(interaction.guild, tickets.logEmbed(ticket, tickets.INFO_COLOR, 'unclaimed', [
+			`**Released by:** ${interaction.user} (was <@${ticket.claimedBy}>)`,
+		])),
+	]);
+	await interaction.editReply({ content: `Ticket ${tickets.formatNumber(ticket.number)} is no longer claimed.` });
 }
 
 async function handleAdd(interaction) {
 	requireMod(interaction);
 	const ticket = resolveTicket(interaction);
-	const thread = await requireOpenThread(interaction, ticket);
 	const user = interaction.options.getUser('user');
+	tickets.requireOpen(ticket);
+	await interaction.deferReply({ ephemeral: true });
 
+	const thread = await tickets.openThreadForChange(interaction.guild, ticket);
 	await thread.members.add(user.id).catch(() => {
 		throw new Error(`I couldn't add ${user} — they probably can't see ${thread.parent ?? 'the ticket channel'}. Give them access to it first.`);
 	});
 	await thread.send({ content: `${interaction.user} added ${user} to this ticket.`, allowedMentions: { users: [user.id] } });
-	await interaction.reply({ content: `Added ${user} to ticket ${tickets.formatNumber(ticket.number)}.`, ephemeral: true });
+	await interaction.editReply({ content: `Added ${user} to ticket ${tickets.formatNumber(ticket.number)}.` });
 }
 
 async function handleRemove(interaction) {
 	requireMod(interaction);
 	const ticket = resolveTicket(interaction);
-	const thread = await requireOpenThread(interaction, ticket);
 	const user = interaction.options.getUser('user');
 	if (user.id === ticket.openerId) {
 		throw new Error(`${user} opened this ticket, so they can't be removed from it. Close it with \`/ticket close\` instead.`);
 	}
+	tickets.requireOpen(ticket);
+	await interaction.deferReply({ ephemeral: true });
 
-	await thread.members.remove(user.id);
+	const thread = await tickets.openThreadForChange(interaction.guild, ticket);
+	await thread.members.remove(user.id).catch((error) => {
+		throw new Error(`I couldn't remove ${user} from ticket ${tickets.formatNumber(ticket.number)}: ${error.message}`);
+	});
 	await thread.send({ content: `${interaction.user} removed ${user} from this ticket.`, allowedMentions: { parse: [] } });
-	await interaction.reply({ content: `Removed ${user} from ticket ${tickets.formatNumber(ticket.number)}.`, ephemeral: true });
+	await interaction.editReply({ content: `Removed ${user} from ticket ${tickets.formatNumber(ticket.number)}.` });
 }
 
 const STATUS_LABELS = { open: 'Open', closed: 'Closed', all: 'All' };
@@ -169,20 +189,10 @@ async function handleList(interaction) {
 	const status = interaction.options.getString('status') ?? 'open';
 	const rows = ticketStore.listTickets(interaction.guildId, status === 'all' ? null : status, LIST_LIMIT);
 
-	const lines = rows.map((ticket) => [
-		`**${tickets.formatNumber(ticket.number)}** ${tickets.ticketLink(ticket)} — ${ticket.subject}`,
-		`by <@${ticket.openerId}>`,
-		ticket.status === 'open'
-			? (ticket.claimedBy ? `claimed by <@${ticket.claimedBy}>` : 'unclaimed')
-			: `closed <t:${Math.floor(new Date(ticket.closedAt).getTime() / 1000)}:R>`,
-	].join(' · '));
-
 	const embed = new EmbedBuilder()
 		.setTitle(`${STATUS_LABELS[status]} tickets`)
 		.setColor(tickets.INFO_COLOR)
-		// Each line is well under 200 characters, so 25 stay inside the
-		// description's 4096 limit.
-		.setDescription(lines.join('\n') || 'None.')
+		.setDescription(tickets.formatTicketList(rows))
 		.setFooter({ text: rows.length === LIST_LIMIT ? `Showing the newest ${LIST_LIMIT}.` : `${rows.length} shown.` });
 
 	await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -191,6 +201,7 @@ async function handleList(interaction) {
 const HANDLERS = {
 	setup: handleSetup,
 	disable: handleDisable,
+	'clear-log': handleClearLog,
 	open: handleOpen,
 	close: handleClose,
 	reopen: handleReopen,
@@ -206,11 +217,11 @@ function numberOption(option, description) {
 }
 
 module.exports = {
-	// Switchable feature set this command belongs to (lib/features.js).
-	// events/interactionCreate.js refuses it when the guild has it off. The
-	// Close and Claim buttons inside existing tickets keep working regardless —
-	// see lib/tickets.js.
-	feature: 'tickets',
+	// Deliberately no `feature: 'tickets'` here. That would refuse the whole
+	// command while the switch is off, leaving staff unable to close, reopen,
+	// claim, add, remove or list tickets that are still open. "Off" means no
+	// new tickets (CodeStandards.md § 16), so only setup and open check it, as
+	// commands/security.js does for its two features.
 	data: new SlashCommandBuilder()
 		.setName('ticket')
 		.setDescription('Private support tickets between a member and the staff.')
@@ -238,6 +249,9 @@ module.exports = {
 		.addSubcommand((sub) => sub
 			.setName('disable')
 			.setDescription('(Admin) Turn tickets off. Open tickets keep working.'))
+		.addSubcommand((sub) => sub
+			.setName('clear-log')
+			.setDescription('(Admin) Stop logging ticket events.'))
 		.addSubcommand((sub) => sub
 			.setName('reopen')
 			.setDescription('(Mod) Reopen a closed ticket.')

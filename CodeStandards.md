@@ -558,6 +558,12 @@ Banned words is the one feature whose switch reaches outside the bot: its rules
 live in the server, so `syncGuild` switches them off in Discord rather than
 deleting them, keeping any exemptions an admin added.
 
+`/ticket` goes one step further: it carries no `feature:` at all, and only
+`setup` and `open` check the switch. Gating the whole command would have left
+staff unable to close or reopen tickets still open when the switch went off.
+Do the same for any command that both starts new work and manages work
+already running.
+
 **Commands stay registered with Discord.** Registration is global, so the bot
 cannot remove a command for one server — a switched-off feature's commands are
 still in the picker and must answer for themselves. That is why

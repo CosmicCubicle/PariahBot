@@ -116,7 +116,7 @@ Manage Channels alone is neither.
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `ping add`/`remove`/`clear`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
 | `/instagram` | (Mod) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
-| `/ticket` | Support tickets as private threads. Everyone: `open`, and `close` on their own ticket. (Mod): `claim`, `unclaim`, `add`, `remove`, `close`, `reopen`, `list`. (Admin): `setup` the panel and log channel, `disable`. |
+| `/ticket` | Support tickets as private threads. Everyone: `open`, and `close` on their own ticket. (Mod): `claim`, `unclaim`, `add`, `remove`, `close`, `reopen`, `list`. (Admin): `setup` the panel and log channel, `clear-log`, `disable`. |
 | `/giveaway` | (Mod) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:
