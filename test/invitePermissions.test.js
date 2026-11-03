@@ -109,7 +109,9 @@ test('the Required preset equals the number on the wiki Bot Setup page', () => {
 	// map here changes and that number doesn't, self-hosters get an invite that
 	// is missing a permission, and the failure shows up much later as a feature
 	// that silently doesn't work. Pinned so the wiki has to be updated with it.
-	assert.equal(invite.bitsFor(invite.FEATURE_KEYS).toString(), '1099797982390');
+	// Last changed by support tickets (#89), which moved the three thread
+	// permissions out of the Recommended extras.
+	assert.equal(invite.bitsFor(invite.FEATURE_KEYS).toString(), '1460575235254');
 });
 
 test('the Recommended preset equals the other number on that page', () => {

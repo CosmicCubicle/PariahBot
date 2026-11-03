@@ -4,6 +4,7 @@ const { checkAndNotifyDeadHubs } = require('../lib/hubDesync');
 const autoDeleteStore = require('../state/autoDeleteChannels');
 const autoDelete = require('../lib/autoDelete');
 const { scheduleActiveGiveaways } = require('../lib/giveaways');
+const { discardAbandonedTickets } = require('../lib/tickets');
 const { startPoller: startStreamAlerts } = require('../lib/streamAlerts');
 const { startPoller: startInstagramAlerts } = require('../lib/instagramAlerts');
 const { syncAll: syncBannedWords } = require('../lib/bannedWords');
@@ -40,6 +41,7 @@ module.exports = {
 		await autoDelete.seedAll(client, autoDeleteStore.listAllChannels());
 		autoDelete.startSweepTimer();
 		scheduleActiveGiveaways(client);
+		discardAbandonedTickets();
 		scheduleAllTempBans(client);
 		startStreamAlerts(client);
 		startInstagramAlerts(client);

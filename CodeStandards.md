@@ -256,7 +256,7 @@ scoped to `interaction.guildId`.
   - **Admin** (`isAdmin`, `requireAdmin`): Discord's Administrator
     permission, or an admin role (`/setup admin-role`). Admin-only:
     `/setup`, `/security`, the admin dashboard, `/mod config` and
-    `remove-case`, `/bannedwords` on/off and lists, and `/perms copy`. These are things
+    `remove-case`, `/bannedwords` on/off and lists, `/perms copy`, and `/ticket setup` and `disable`. These are things
     that configure the server, or erase records of staff actions.
   - **Mod** (`isMod`, `requireMod`): a mod role (`/setup mod-role`), or any
     admin. Every other staff command.
@@ -557,6 +557,12 @@ still clean themselves up, and per-channel auto-delete settings are kept.
 Banned words is the one feature whose switch reaches outside the bot: its rules
 live in the server, so `syncGuild` switches them off in Discord rather than
 deleting them, keeping any exemptions an admin added.
+
+`/ticket` goes one step further: it carries no `feature:` at all, and only
+`setup` and `open` check the switch. Gating the whole command would have left
+staff unable to close or reopen tickets still open when the switch went off.
+Do the same for any command that both starts new work and manages work
+already running.
 
 **Commands stay registered with Discord.** Registration is global, so the bot
 cannot remove a command for one server — a switched-off feature's commands are

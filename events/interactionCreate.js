@@ -7,6 +7,7 @@ const { handleEntryInteraction } = require('../lib/giveaways');
 const features = require('../lib/features');
 const { handleModerationModal } = require('../lib/moderation');
 const { handlePermsButtonInteraction } = require('../lib/permissionTools');
+const { handleTicketButtonInteraction, handleTicketModal } = require('../lib/tickets');
 
 async function replyWithError(interaction, error) {
 	console.error('Component interaction failed:', error);
@@ -31,7 +32,8 @@ module.exports = {
 					|| await handleRoleMenuButtonInteraction(interaction)
 					|| await handleVerifyStartInteraction(interaction)
 					|| await handleEntryInteraction(interaction)
-					|| await handlePermsButtonInteraction(interaction);
+					|| await handlePermsButtonInteraction(interaction)
+					|| await handleTicketButtonInteraction(interaction);
 				if (!handled) return; // some other feature's button, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
@@ -51,11 +53,13 @@ module.exports = {
 		}
 
 		if (interaction.isModalSubmit()) {
-			// The forms opened by the right-click Kick/Ban/Timeout actions. The
-			// right-click itself is audit-logged below like any command; the
-			// action taken is reported through /alerts by lib/moderation.js.
+			// The forms opened by the right-click Kick/Ban/Timeout actions, and the
+			// support ticket form. The right-click itself is audit-logged below like
+			// any command; the action taken is reported through /alerts by
+			// lib/moderation.js. A ticket reports itself in its log channel.
 			try {
-				const handled = await handleModerationModal(interaction);
+				const handled = await handleModerationModal(interaction)
+					|| await handleTicketModal(interaction);
 				if (!handled) return; // some other feature's form, not ours
 			} catch (error) {
 				await replyWithError(interaction, error);
