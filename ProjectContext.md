@@ -22,6 +22,7 @@ several single-purpose bots with one:
 - activity levels
 - Twitch and YouTube alerts
 - Instagram post alerts
+- Patreon post alerts (public previews only)
 - RSS and Atom feeds
 - admin alerts
 - a server log (kicks and bans, joins and leaves, messages, server changes)
@@ -32,6 +33,9 @@ The bot calls three outside services, each optional and off unless the host
 sets its credentials:
 - Twitch's and YouTube's APIs, for stream and upload alerts
 - Instagram's Graph API, for post alerts
+
+It also reads **Patreon's public creator pages' data** for `/patreon`, which
+needs no credentials, so it's always on (see the Patreon bullet below).
 
 It also fetches **whatever RSS or Atom feed addresses** server admins add
 with `/rss`. That needs no credentials, so it's always on. Because those
@@ -81,6 +85,25 @@ it.
   - **Lookups are by username.** A renamed account has to be re-added. The
     stored account ID stops a username someone else took over from posting
     a stranger's posts.
+- **Patreon has no public feed or usable API for this** (#112). The official
+  API v2 reads a campaign's posts only with that creator's own OAuth token,
+  and its RSS feeds are private, per patron. So `lib/patreon.js` reads the
+  JSON patreon.com's own creator pages load for a logged-out visitor, polled
+  every 10 minutes, one request per creator. The trade-offs:
+  - **Undocumented.** If Patreon changes it, polling logs an error and
+    nothing posts, like YouTube's `/live` check. Patreon's terms should be
+    re-checked if the feature is ever questioned; it reads only what any
+    logged-out visitor's browser reads.
+  - **Public previews only, by design.** The user who asked for it required
+    that nothing behind a paywall is shared. The requests carry no login, so
+    Patreon itself returns only the logged-out view; the post body is never
+    requested; and a patron-only post contributes only its title, teaser and
+    the preview image Patreon shows logged-out visitors (already blurred, or
+    a video still). The comment at the top of `lib/patreon.js` lists the
+    three guards; all three must stay.
+  - **Creators Patreon marks 18+** only post into age-restricted channels.
+  - **Image links expire.** Patreon signs its image addresses with an expiry,
+    so an old alert's image can stop loading. The text and link don't.
 - **Announcement records are kept until 30 days after a stream was last
   seen**, not 30 days after it was announced. Otherwise a stream running
   longer than a month would be announced again.
@@ -368,6 +391,7 @@ outweigh a source problem that has no legitimate solution.
   own channel and `/instagram` command rather than a `/streamers` platform,
   because posts aren't streams and don't involve the streamer role. Another
   social platform would get a new issue and follow the Instagram pattern.
+  Patreon (#112) did: `/patreon`, its own channel, its own tables.
 - Every YouTube upload is announced, including Shorts. There's no per-channel
   or per-kind filter yet, and uploads go to the same channel as live alerts.
 - A music feature (#68, #72) was considered and **declined** — see § 8 for why,

@@ -3,7 +3,7 @@
 PariahBot is a self-hosted Discord bot that consolidates several single-purpose
 bots into one: temporary voice channels, self-service role menus, message
 auto-deletion, anti-spam, banned words, moderation, giveaways, activity levels, Twitch and YouTube
-alerts, Instagram post alerts, RSS feeds, a server log, and admin alerting. Built
+alerts, Instagram and Patreon post alerts, RSS feeds, a server log, and admin alerting. Built
 with Discord.js, it loads slash commands dynamically and keeps all per-server
 state in a local SQLite database.
 
@@ -28,6 +28,7 @@ setup, configuration, per-server walkthroughs and troubleshooting.
 - **Activity levels** — XP from messages, with `/level rank` and a server leaderboard.
 - **Twitch and YouTube alerts** — members with the streamer role link their own Twitch or YouTube channel, and admins can add any channel directly (no role needed). The bot posts an alert, optionally pinging a role and with a custom message, when any of them goes live, and when a YouTube channel uploads a new video. Each platform needs its API credentials in `hom.env`.
 - **Instagram post alerts** — admins follow any number of public Instagram Business or Creator accounts, and the bot shares each new post and reel in a dedicated channel, optionally pinging a role and with a custom message. Needs a Meta System User token in `hom.env`; see the wiki's [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts) page.
+- **Patreon post alerts** — admins follow any number of Patreon creators, and the bot shares each new post in a dedicated channel as its **public preview** (title, teaser and preview image) with a link to the post, optionally pinging a role and with a custom message. Nothing behind a paywall is ever fetched or posted: patron-only posts show only what Patreon shows a logged-out visitor. Needs no credentials.
 - **RSS and Atom feeds** — admins follow any number of feeds (news, blogs, release notes, subreddits), each posting new items to its own channel, optionally pinging a role and with a custom message. Only new items are posted, and the bot won't fetch addresses on its host's own network.
 - **Per-server role configuration** — member, admin and mod (any number of each), and streamer roles, each settable to an existing role or created on the spot.
 - **Admin alerts** — routed to a channel and/or DMs, set per server with `/alerts`. The bot never creates the channel on its own: pick an existing one, or ask it to make one.
@@ -75,6 +76,7 @@ All of these are covered in detail in the wiki:
 - **[Banned Words](https://github.com/CosmicCubicle/PariahBot/wiki/Banned-Words)** — the lists, custom words, exemptions and reporting
 - **[Streamer Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Streamer-Alerts)** — Twitch and YouTube credentials and setup
 - **[Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts)** — the Meta app, System User token and setup
+- **[Patreon Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Patreon-Alerts)** — following creators, what's shared from patron-only posts, and known limits
 - **[Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)** — when something silently does nothing
 
 > ⚠️ **Three things that trip up most setups:** the bot's role must sit **above**
@@ -111,6 +113,7 @@ Manage Channels alone is neither.
 | `/streamers` | Twitch and YouTube live and upload alerts. Members with the streamer role: `link`, `unlink`. (Mod): `add`, `channel`, `ping add`/`remove`/`clear`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/rss` | (Mod) RSS and Atom feeds, each posting to its own channel: `add`, `remove`, `test`, `list`. |
 | `/instagram` | (Mod) Instagram post alerts in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
+| `/patreon` | (Mod) Patreon post alerts (public previews only) in a dedicated channel: `add`, `channel`, `message`, `clear-message`, `disable`, `remove`, `list`. |
 | `/giveaway` | (Mod) `create` a timed giveaway, or `end` one early. Members enter from the posted button. |
 
 Full subcommand and option reference:

@@ -42,6 +42,8 @@ something similar.
     Twitch and YouTube credentials, setup and quota
   - [Instagram Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Instagram-Alerts):
     the Meta app, System User token and server setup, step by step
+  - [Patreon Alerts](https://github.com/CosmicCubicle/PariahBot/wiki/Patreon-Alerts):
+    following creators, what's shared from patron-only posts, known limits
   - [Troubleshooting](https://github.com/CosmicCubicle/PariahBot/wiki/Troubleshooting)
 
 ## Outside APIs
@@ -51,6 +53,11 @@ something similar.
   and [getting started with Facebook Login](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-facebook-login/get-started.md).
   Meta's app dashboard changes often. When it no longer matches the
   wiki's Instagram Alerts page, update the page.
+- **Patreon** (`lib/patreon.js`): no official API covers this — it reads
+  the undocumented `https://www.patreon.com/api/campaigns` and `/api/posts`
+  JSON that creator pages load, anonymously. The official
+  [API v2 docs](https://docs.patreon.com/) are only relevant if the feature
+  ever moves to creator-authorised access.
 
 ## Bots features are modeled on
 

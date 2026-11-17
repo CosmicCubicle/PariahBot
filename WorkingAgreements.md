@@ -219,8 +219,9 @@ an internal page and post it into Discord (server-side request forgery).
     changed afterwards to point at an internal address.
 - It also caps the size and time of every response. Keep both checks if
   you change it.
-- Fixed addresses written in the code (the Twitch, YouTube and Instagram
-  APIs) don't need it.
+- Fixed addresses written in the code (the Twitch, YouTube, Instagram and
+  Patreon APIs) don't need it. A creator name typed into `/patreon` only
+  ever becomes an encoded query value on Patreon's fixed address.
 
 ---
 
