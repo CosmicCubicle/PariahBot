@@ -6,6 +6,7 @@ const autoDelete = require('../lib/autoDelete');
 const { scheduleActiveGiveaways } = require('../lib/giveaways');
 const { startPoller: startStreamAlerts } = require('../lib/streamAlerts');
 const { startPoller: startInstagramAlerts } = require('../lib/instagramAlerts');
+const { startPoller: startPatreonAlerts } = require('../lib/patreonAlerts');
 const { syncAll: syncBannedWords } = require('../lib/bannedWords');
 const { scheduleAllTempBans } = require('../lib/moderation');
 const { startPoller: startRssAlerts } = require('../lib/rssAlerts');
@@ -43,6 +44,7 @@ module.exports = {
 		scheduleAllTempBans(client);
 		startStreamAlerts(client);
 		startInstagramAlerts(client);
+		startPatreonAlerts(client);
 		startRssAlerts(client);
 		startDashboard(client);
 		// Sweeps once now so counters are right after a restart, then every 20

@@ -314,6 +314,7 @@ can only set a permission bit it already holds (see
   - `0x9146ff` (Twitch purple): Twitch alerts
   - `0xff0033` (YouTube red): YouTube alerts
   - `0xe1306c` (Instagram pink): Instagram alerts
+  - `0xff424d` (Patreon coral): Patreon alerts
   - `0xf26522` (RSS orange): RSS feed items
 - Discord's limits are real and they throw when exceeded: embed field names
   ≤ 256 characters, values ≤ 1024, ≤ 25 select-menu options. Put

@@ -76,6 +76,9 @@ function getGuildSettings(guildId) {
 		instagramChannelId: row?.instagram_channel_id ?? null,
 		instagramRoleId: row?.instagram_role_id ?? null,
 		instagramMessage: row?.instagram_message ?? null,
+		patreonChannelId: row?.patreon_channel_id ?? null,
+		patreonRoleId: row?.patreon_role_id ?? null,
+		patreonMessage: row?.patreon_message ?? null,
 		warnEscalation: row?.warn_escalation_count
 			? {
 				count: row.warn_escalation_count,
@@ -358,6 +361,35 @@ function setInstagramMessage(guildId, message) {
 	upsertInstagramMessageStmt.run({ guildId, message: message ?? null });
 }
 
+// Where /patreon post alerts go, and the optional role they ping — see
+// lib/patreonAlerts.js. Cleared together by /patreon disable; a null
+// patreon_channel_id is what "Patreon alerts are off" means.
+const upsertPatreonAlertsStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, patreon_channel_id, patreon_role_id)
+	VALUES (@guildId, @channelId, @roleId)
+	ON CONFLICT(guild_id) DO UPDATE SET
+		patreon_channel_id = excluded.patreon_channel_id,
+		patreon_role_id = excluded.patreon_role_id
+`);
+
+function setPatreonAlerts(guildId, channelId, roleId) {
+	upsertPatreonAlertsStmt.run({ guildId, channelId, roleId: roleId ?? null });
+}
+
+function clearPatreonAlerts(guildId) {
+	upsertPatreonAlertsStmt.run({ guildId, channelId: null, roleId: null });
+}
+
+const upsertPatreonMessageStmt = db.prepare(`
+	INSERT INTO guild_settings (guild_id, patreon_message)
+	VALUES (@guildId, @message)
+	ON CONFLICT(guild_id) DO UPDATE SET patreon_message = excluded.patreon_message
+`);
+
+function setPatreonMessage(guildId, message) {
+	upsertPatreonMessageStmt.run({ guildId, message: message ?? null });
+}
+
 // /mod config escalation and escalation-off — see lib/moderation.js. null
 // turns escalation off; all three columns are set or cleared together.
 const upsertWarnEscalationStmt = db.prepare(`
@@ -430,6 +462,9 @@ module.exports = {
 	clearInstagramAlerts,
 	setStreamAlertMessage,
 	setInstagramMessage,
+	setPatreonAlerts,
+	clearPatreonAlerts,
+	setPatreonMessage,
 	setWarnEscalation,
 	setBanAppealNote,
 };

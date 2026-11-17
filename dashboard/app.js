@@ -348,7 +348,7 @@ const TABS = [
 	['general', 'General', null],
 	['features', 'Features', null],
 	['bannedWords', 'Banned words', ['bannedWords']],
-	['alerts', 'Stream, Instagram & RSS', ['streamers', 'instagram', 'rss']],
+	['alerts', 'Stream, social & RSS', ['streamers', 'instagram', 'patreon', 'rss']],
 	['autoDelete', 'Auto-delete', ['autoDelete']],
 	['moderation', 'Moderation', ['moderation']],
 	['permissions', 'Permissions', ['permissionTools']],
@@ -564,10 +564,11 @@ function pingRoleChips(prefix, settings) {
 }
 
 function alertsTab() {
-	const { streams, instagram, rss } = state.guild;
+	const { streams, instagram, patreon, rss } = state.guild;
 	const platform = h('select', {}, streams.platforms.map((p) => h('option', { value: p.key, disabled: !p.configured }, `${p.label}${p.configured ? '' : ' (not set up)'}`)));
 	const account = h('input', { placeholder: 'Twitch username or YouTube @handle' });
 	const igAccount = h('input', { placeholder: 'username or instagram.com link' });
+	const patreonCreator = h('input', { placeholder: 'patreon.com/<name> link or name' });
 	const feedUrl = h('input', { placeholder: 'https://example.com/feed' });
 	const feedChannel = channelSelect(null, null);
 	const feedRole = roleSelect(null, 'No ping', { ping: true });
@@ -594,6 +595,15 @@ function alertsTab() {
 					h('td', {}, formatDate(a.addedAt)),
 					h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following @${a.username}?`, (e) => act('instagram.remove', { accountId: a.accountId }, e.target)))))), 'No accounts yet.'),
 				h('div', { class: 'row' }, field('Follow an account', igAccount), btn('Add', 'primary', (e) => act('instagram.add', { account: igAccount.value }, e.target)))),
+		),
+		ifFeature('patreon',
+			alertSettingsCard('Patreon', 'New posts from followed creators, as the public preview with a link — nothing behind the paywall.', 'patreon', patreon, '{name} {title} {url} {platform} {role}', null),
+			card(`Patreon creators (${patreon.creators.length})`, null,
+				table(['Creator', 'Since', ''], patreon.creators.map((c) => h('tr', {},
+					h('td', {}, c.name),
+					h('td', {}, formatDate(c.addedAt)),
+					h('td', {}, btn('Remove', 'danger', confirmThen(`Stop following ${c.name}?`, (e) => act('patreon.remove', { campaignId: c.campaignId }, e.target)))))), 'No creators yet.'),
+				h('div', { class: 'row' }, field('Follow a creator', patreonCreator), btn('Add', 'primary', (e) => act('patreon.add', { creator: patreonCreator.value }, e.target)))),
 		),
 		ifFeature('rss',
 			card(`RSS feeds (${rss.feeds.length} of ${rss.max})`, 'Each feed posts to its own channel. Only items published after adding are posted.',
