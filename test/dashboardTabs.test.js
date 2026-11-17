@@ -38,7 +38,7 @@ function loadApp() {
 function withFeaturesOff(app, ...offKeys) {
 	const keys = [
 		'tempVoice', 'roleMenus', 'autoDelete', 'captcha', 'honeypot', 'leveling',
-		'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'logging', 'permissionTools',
+		'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'patreon', 'logging', 'permissionTools',
 	];
 	app.state.guild = {
 		features: keys.map((key) => ({ key, label: key, commands: [], enabled: !offKeys.includes(key), isDefault: false })),
@@ -48,7 +48,7 @@ function withFeaturesOff(app, ...offKeys) {
 test('General and Features are always shown, even with everything off', () => {
 	const app = loadApp();
 	withFeaturesOff(app, 'tempVoice', 'roleMenus', 'autoDelete', 'captcha', 'honeypot',
-		'leveling', 'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'logging', 'permissionTools');
+		'leveling', 'giveaways', 'bannedWords', 'moderation', 'streamers', 'rss', 'instagram', 'patreon', 'logging', 'permissionTools');
 
 	const keys = app.visibleTabs().map(([key]) => key);
 	// Features has to survive switching everything off, or there would be no way
@@ -78,13 +78,13 @@ test("a single feature's tab disappears with it", () => {
 test('a shared tab survives while any of its features is on', () => {
 	const app = loadApp();
 
-	// The alerts tab holds streamers, Instagram and RSS. Hiding it when one is
-	// off would take the other two with it.
-	withFeaturesOff(app, 'streamers', 'instagram');
+	// The alerts tab holds streamers, Instagram, Patreon and RSS. Hiding it when one is
+	// off would take the others with it.
+	withFeaturesOff(app, 'streamers', 'instagram', 'patreon');
 	assert.ok(app.visibleTabs().map(([key]) => key).includes('alerts'), 'RSS is still on');
 
-	withFeaturesOff(app, 'streamers', 'instagram', 'rss');
-	assert.ok(!app.visibleTabs().map(([key]) => key).includes('alerts'), 'all three off, so the tab goes');
+	withFeaturesOff(app, 'streamers', 'instagram', 'patreon', 'rss');
+	assert.ok(!app.visibleTabs().map(([key]) => key).includes('alerts'), 'all four off, so the tab goes');
 });
 
 test('the Giveaways & more tab needs all four of its features off to disappear', () => {

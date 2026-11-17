@@ -215,6 +215,29 @@ db.exec(`
 		PRIMARY KEY (guild_id, media_id)
 	);
 
+	-- Patreon creators a guild posts alerts for (/patreon add). campaign_id is
+	-- Patreon's campaign ID, which is what's polled and survives the creator
+	-- changing their patreon.com/<vanity>; vanity and name are for display and
+	-- for /patreon remove by name. added_at stops a newly added creator
+	-- announcing their back catalogue — see lib/patreonAlerts.js.
+	CREATE TABLE IF NOT EXISTS patreon_creators (
+		guild_id    TEXT NOT NULL,
+		campaign_id TEXT NOT NULL,
+		vanity      TEXT,
+		name        TEXT NOT NULL,
+		added_at    TEXT NOT NULL,
+		PRIMARY KEY (guild_id, campaign_id)
+	);
+
+	-- Every Patreon post already announced, so nothing posts twice across a
+	-- restart. Pruned 30 days after announcing, as instagram_announcements is.
+	CREATE TABLE IF NOT EXISTS patreon_announcements (
+		guild_id     TEXT NOT NULL,
+		post_id      TEXT NOT NULL,
+		announced_at TEXT NOT NULL,
+		PRIMARY KEY (guild_id, post_id)
+	);
+
 	-- /bannedwords: which ready-made lists a guild has picked (list_key is a
 	-- key of LISTS in lib/bannedWordLists.js), and its own custom words. Only
 	-- the configuration lives here — the AutoMod rules it's turned into live
@@ -431,6 +454,19 @@ if (!hasColumn('guild_settings', 'stream_alert_message')) {
 }
 if (!hasColumn('guild_settings', 'instagram_message')) {
 	db.exec('ALTER TABLE guild_settings ADD COLUMN instagram_message TEXT');
+}
+
+// /patreon post alerts (#112), the same three settings as Instagram's: a null
+// patreon_channel_id means Patreon alerts are off, patreon_role_id is the
+// optional ping, and patreon_message is the optional custom text.
+if (!hasColumn('guild_settings', 'patreon_channel_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN patreon_channel_id TEXT');
+}
+if (!hasColumn('guild_settings', 'patreon_role_id')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN patreon_role_id TEXT');
+}
+if (!hasColumn('guild_settings', 'patreon_message')) {
+	db.exec('ALTER TABLE guild_settings ADD COLUMN patreon_message TEXT');
 }
 
 // /voice owner-control: switch off a /vc owner control per guild. Sticky
